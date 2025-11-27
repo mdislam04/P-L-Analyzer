@@ -3,6 +3,8 @@ import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 
 
 
@@ -154,9 +156,10 @@ interface Contract {
           <p>Please add contracts in the Input Data tab to view the dashboard</p>
         </div>
 
-        <div *ngIf="contracts.length > 0" class="dashboard">
+        <div *ngIf="contracts.length > 0" class="dashboard" id="dashboard-content">
           <div class="dashboard-header">
             <h1>{{ getMonthName() }} TRADING PERFORMANCE DASHBOARD</h1>
+            <button class="btn export-btn" (click)="exportDashboardAsImage()">📸 Export as Image</button>
           </div>
 
           <div class="overall-pnl">
@@ -537,6 +540,7 @@ interface Contract {
     .dashboard-header {
       text-align: center;
       margin-bottom: 30px;
+      position: relative;
     }
 
     .dashboard-header h1 {
@@ -544,6 +548,25 @@ interface Contract {
       color: #ffc107;
       margin-bottom: 10px;
       letter-spacing: 2px;
+    }
+
+    .export-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      padding: 10px 20px;
+      background: #2196f3;
+      color: #fff;
+      font-size: 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .export-btn:hover {
+      background: #1976d2;
+      transform: translateY(-2px);
     }
 
     .overall-pnl {
@@ -924,5 +947,73 @@ export class App {
 
   trackByIndex(index: number): number {
     return index;
+  }
+
+  async exportDashboardAsImage() {
+    const dashboardElement = document.getElementById('dashboard-content');
+    if (!dashboardElement) {
+      alert('Dashboard not found');
+      return;
+    }
+
+    // Add a non-invasive solid background overlay for export clarity (beneath content)
+    const overlay = document.createElement('div');
+    overlay.style.position = 'absolute';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.background = '#1a2332';
+    overlay.style.zIndex = '-1';
+    dashboardElement.style.position = 'relative';
+    dashboardElement.prepend(overlay);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      // Primary: html-to-image (crisper via SVG foreignObject)
+      const dataUrl = await toPng(dashboardElement, {
+        backgroundColor: '#1a2332',
+        pixelRatio: 3,
+        cacheBust: true,
+      });
+      overlay.remove();
+      dashboardElement.style.position = '';
+      const link = document.createElement('a');
+      link.download = `trading-dashboard-${this.getMonthName().replace(/\s/g, '-')}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (primaryError) {
+      // Fallback: html2canvas tuned
+      try {
+        const canvas = await html2canvas(dashboardElement, {
+          backgroundColor: '#1a2332',
+          scale: 3,
+          logging: false,
+          useCORS: true,
+          allowTaint: false,
+          width: dashboardElement.offsetWidth,
+          height: dashboardElement.offsetHeight
+        });
+        overlay.remove();
+        dashboardElement.style.position = '';
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const fileName = `trading-dashboard-${this.getMonthName().replace(/\s/g, '-')}.png`;
+            link.download = fileName;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+          }
+        }, 'image/png');
+      } catch (fallbackError) {
+        overlay.remove();
+        dashboardElement.style.position = '';
+        console.error('Error exporting dashboard:', fallbackError);
+        alert('Failed to export dashboard. Please try again.');
+      }
+    }
   }
 }
