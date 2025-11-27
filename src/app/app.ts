@@ -66,6 +66,7 @@ interface Contract {
             </div>
             <div class="upload-info">
               <strong>Excel Format:</strong> Column A: Symbol, Column B: Realized P&L (Type auto-detected from symbol name)
+
             </div>
           </div>
 
@@ -202,31 +203,43 @@ interface Contract {
               </div>
             </div>
 
-            <div class="card">
-              <div class="card-header">
-                <span class="card-icon">🟢</span>
-                <span class="card-title">NIFTY PROFIT</span>
-              </div>
-              <div *ngIf="getNiftyProfits().length === 0" style="color: #888;">No NIFTY profit contracts</div>
-              <div 
-                *ngFor="let contract of getNiftyProfits()"
-                class="contract-list-item">
-                <span class="contract-name">{{ contract.name }}</span>
-                <span class="contract-value profit">₹{{ formatNumber(contract.pnl) }}</span>
-              </div>
-            </div>
+            
+          </div>
 
-            <div class="card">
-              <div class="card-header">
-                <span class="card-icon">🔴</span>
-                <span class="card-title">NIFTY LOSS</span>
+          <!-- NIFTY Futures Performance (full width) -->
+          <div class="card nifty-futures-card">
+            <div class="card-header">
+              <span class="card-icon">📉</span>
+              <span class="card-title">NIFTY FUTURES PERFORMANCE</span>
+            </div>
+            <div class="nifty-futures-overall">
+              <strong>Overall NIFTY Futures P&L:</strong>
+              <span 
+                [style.color]="getNiftyFuturesTotal() >= 0 ? '#4caf50' : '#f44336'"
+                style="font-weight: bold; font-size: 1.2em; margin-left: 10px;">
+                {{ getNiftyFuturesTotal() >= 0 ? '+' : '' }}₹{{ formatNumber(Math.abs(getNiftyFuturesTotal())) }}
+              </span>
+            </div>
+            <div class="nifty-futures-grid">
+              <div>
+                <h4 style="color: #4caf50; margin: 10px 0;">Top 5 Profit Makers</h4>
+                <div *ngIf="getNiftyProfits().length === 0" style="color: #888; font-size: 0.9em;">No NIFTY profit contracts</div>
+                <div 
+                  *ngFor="let contract of getNiftyProfits()"
+                  class="contract-list-item">
+                  <span class="contract-name">{{ contract.name }}</span>
+                  <span class="contract-value profit">₹{{ formatNumber(contract.pnl) }}</span>
+                </div>
               </div>
-              <div *ngIf="getNiftyLosses().length === 0" style="color: #888;">No NIFTY loss contracts</div>
-              <div 
-                *ngFor="let contract of getNiftyLosses()"
-                class="contract-list-item">
-                <span class="contract-name">{{ contract.name }}</span>
-                <span class="contract-value loss">₹{{ formatNumber(contract.pnl) }}</span>
+              <div>
+                <h4 style="color: #f44336; margin: 10px 0;">Top 5 Lossers</h4>
+                <div *ngIf="getNiftyLosses().length === 0" style="color: #888; font-size: 0.9em; min-height: 120px; display: flex; align-items: center;">No NIFTY loss contracts</div>
+                <div 
+                  *ngFor="let contract of getNiftyLosses()"
+                  class="contract-list-item">
+                  <span class="contract-name">{{ contract.name }}</span>
+                  <span class="contract-value loss">₹{{ formatNumber(contract.pnl) }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -247,7 +260,7 @@ interface Contract {
             </div>
             <div class="nifty-options-grid">
               <div>
-                <h4 style="color: #4caf50; margin: 15px 0 10px 0;">Top 3 Profits</h4>
+                <h4 style="color: #4caf50; margin: 15px 0 10px 0;">Top 5 Profits</h4>
                 <div *ngIf="getNiftyOptionTopProfits().length === 0" style="color: #888; font-size: 0.9em;">No profit options</div>
                 <div 
                   *ngFor="let contract of getNiftyOptionTopProfits()"
@@ -257,7 +270,7 @@ interface Contract {
                 </div>
               </div>
               <div>
-                <h4 style="color: #f44336; margin: 15px 0 10px 0;">Top 3 Losses</h4>
+                <h4 style="color: #f44336; margin: 15px 0 10px 0;">Top 5 Losses</h4>
                 <div *ngIf="getNiftyOptionTopLosses().length === 0" style="color: #888; font-size: 0.9em;">No loss options</div>
                 <div 
                   *ngFor="let contract of getNiftyOptionTopLosses()"
@@ -605,6 +618,31 @@ interface Contract {
       letter-spacing: 2px;
     }
 
+      .nifty-futures-overall {
+        margin: 8px 0 12px 0;
+        font-size: 1.1em;
+        padding: 15px;
+        background: rgba(255, 193, 7, 0.1);
+        border-radius: 10px;
+        text-align: center;
+      }
+
+      .nifty-futures-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .nifty-futures-card {
+        border-left: 4px solid rgba(33, 150, 243, 0.4);
+        min-height: 360px;
+        grid-column: 1 / -1;
+      }
+
+      .nifty-futures-grid > div {
+        min-height: 150px;
+      }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -891,14 +929,20 @@ export class App {
     return this.contracts
       .filter(c => c.type === 'nifty' && c.pnl > 0 && !this.isNiftyOption(c))
       .sort((a, b) => b.pnl - a.pnl)
-      .slice(0, 12);
+      .slice(0, 5);
   }
 
   getNiftyLosses(): Contract[] {
     return this.contracts
       .filter(c => c.type === 'nifty' && c.pnl < 0 && !this.isNiftyOption(c))
       .sort((a, b) => a.pnl - b.pnl)
-      .slice(0, 12);
+      .slice(0, 5);
+  }
+
+  getNiftyFuturesTotal(): number {
+    return this.contracts
+      .filter(c => c.type === 'nifty' && !this.isNiftyOption(c))
+      .reduce((sum, c) => sum + c.pnl, 0);
   }
 
   isNiftyOption(contract: Contract): boolean {
@@ -916,14 +960,14 @@ export class App {
     return this.contracts
       .filter(c => this.isNiftyOption(c) && c.pnl > 0)
       .sort((a, b) => b.pnl - a.pnl)
-      .slice(0, 3);
+      .slice(0, 5);
   }
 
   getNiftyOptionTopLosses(): Contract[] {
     return this.contracts
       .filter(c => this.isNiftyOption(c) && c.pnl < 0)
       .sort((a, b) => a.pnl - b.pnl)
-      .slice(0, 3);
+      .slice(0, 5);
   }
 
   getMonthName(): string {
