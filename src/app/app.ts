@@ -228,6 +228,44 @@ interface Contract {
             </div>
           </div>
 
+          <!-- NIFTY Options Performance Card -->
+          <div class="card nifty-options-card">
+            <div class="card-header">
+              <span class="card-icon">📈</span>
+              <span class="card-title">NIFTY OPTIONS PERFORMANCE</span>
+            </div>
+            <div class="nifty-options-overall">
+              <strong>Overall NIFTY Options P&L:</strong>
+              <span 
+                [style.color]="getNiftyOptionsTotal() >= 0 ? '#4caf50' : '#f44336'"
+                style="font-weight: bold; font-size: 1.2em; margin-left: 10px;">
+                {{ getNiftyOptionsTotal() >= 0 ? '+' : '' }}₹{{ formatNumber(Math.abs(getNiftyOptionsTotal())) }}
+              </span>
+            </div>
+            <div class="nifty-options-grid">
+              <div>
+                <h4 style="color: #4caf50; margin: 15px 0 10px 0;">Top 3 Profits</h4>
+                <div *ngIf="getNiftyOptionTopProfits().length === 0" style="color: #888; font-size: 0.9em;">No profit options</div>
+                <div 
+                  *ngFor="let contract of getNiftyOptionTopProfits()"
+                  class="contract-list-item">
+                  <span class="contract-name">{{ contract.name }}</span>
+                  <span class="contract-value profit">₹{{ formatNumber(contract.pnl) }}</span>
+                </div>
+              </div>
+              <div>
+                <h4 style="color: #f44336; margin: 15px 0 10px 0;">Top 3 Losses</h4>
+                <div *ngIf="getNiftyOptionTopLosses().length === 0" style="color: #888; font-size: 0.9em;">No loss options</div>
+                <div 
+                  *ngFor="let contract of getNiftyOptionTopLosses()"
+                  class="contract-list-item">
+                  <span class="contract-name">{{ contract.name }}</span>
+                  <span class="contract-value loss">₹{{ formatNumber(contract.pnl) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="summary-section">
             <h2>📋 {{ getMonthName() }} SUMMARY</h2>
             <div class="summary-stats">
@@ -558,6 +596,25 @@ interface Contract {
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
+    .nifty-options-card {
+      grid-column: 1 / -1;
+    }
+
+    .nifty-options-overall {
+      padding: 15px;
+      background: rgba(255, 193, 7, 0.1);
+      border-radius: 10px;
+      margin-bottom: 15px;
+      text-align: center;
+      font-size: 1.1em;
+    }
+
+    .nifty-options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
     .card-header {
       display: flex;
       align-items: center;
@@ -807,16 +864,41 @@ export class App {
 
   getNiftyProfits(): Contract[] {
     return this.contracts
-      .filter(c => c.type === 'nifty' && c.pnl > 0)
+      .filter(c => c.type === 'nifty' && c.pnl > 0 && !this.isNiftyOption(c))
       .sort((a, b) => b.pnl - a.pnl)
       .slice(0, 12);
   }
 
   getNiftyLosses(): Contract[] {
     return this.contracts
-      .filter(c => c.type === 'nifty' && c.pnl < 0)
+      .filter(c => c.type === 'nifty' && c.pnl < 0 && !this.isNiftyOption(c))
       .sort((a, b) => a.pnl - b.pnl)
       .slice(0, 12);
+  }
+
+  isNiftyOption(contract: Contract): boolean {
+    const name = contract.name.toUpperCase();
+    return name.includes('NIFTY') && (name.includes('CE') || name.includes('PE'));
+  }
+
+  getNiftyOptionsTotal(): number {
+    return this.contracts
+      .filter(c => this.isNiftyOption(c))
+      .reduce((sum, c) => sum + c.pnl, 0);
+  }
+
+  getNiftyOptionTopProfits(): Contract[] {
+    return this.contracts
+      .filter(c => this.isNiftyOption(c) && c.pnl > 0)
+      .sort((a, b) => b.pnl - a.pnl)
+      .slice(0, 3);
+  }
+
+  getNiftyOptionTopLosses(): Contract[] {
+    return this.contracts
+      .filter(c => this.isNiftyOption(c) && c.pnl < 0)
+      .sort((a, b) => a.pnl - b.pnl)
+      .slice(0, 3);
   }
 
   getMonthName(): string {
