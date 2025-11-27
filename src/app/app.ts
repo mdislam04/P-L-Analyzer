@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectorRef } from '@angular/core';
+import { Component, signal, ChangeDetectorRef, NgZone } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -727,7 +727,7 @@ export class App {
     contractPnL: null as number | null
   };
 
-  constructor(private cdr: ChangeDetectorRef) {}
+  constructor(private cdr: ChangeDetectorRef, private zone: NgZone) {}
 
   getCurrentMonth(): string {
     const now = new Date();
@@ -777,13 +777,15 @@ export class App {
             }
           }
 
-          // Update contracts array with new reference to trigger change detection
-          this.contracts = [...this.contracts, ...newContracts];
-          this.cdr.detectChanges();
-          alert(`Successfully imported ${successCount} contracts from Excel!`);
-          
-          // Reset file input
-          event.target.value = '';
+          // Ensure UI updates within Angular zone for immediate refresh
+          this.zone.run(() => {
+            this.contracts = [...this.contracts, ...newContracts];
+            this.cdr.detectChanges();
+            this.uploadedFileName = file.name;
+            alert(`Successfully imported ${successCount} contracts from Excel!`);
+            // Reset file input to allow re-upload of same file
+            event.target.value = '';
+          });
         } catch (error) {
           alert('Error reading Excel file. Please check the format.');
           console.error(error);
