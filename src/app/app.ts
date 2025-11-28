@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { toPng } from 'html-to-image';
 import { DashboardV2Component } from './dashboard-v2.component';
+import { HelpComponent } from './help.component';
+import { ChangeTrackComponent } from './change-track.component';
 
 
 
@@ -22,7 +24,7 @@ interface Contract {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, DashboardV2Component],
+  imports: [CommonModule, FormsModule, DashboardV2Component, HelpComponent, ChangeTrackComponent],
   template: `
     <div class="container">
       <div class="nav-tabs">
@@ -43,6 +45,18 @@ interface Contract {
           [class.active]="activeTab === 'v2'"
           (click)="switchTab('v2')">
           🚀 V2 Dashboard
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'change-track'"
+          (click)="switchTab('change-track')">
+          🔄 Change Track
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'help'"
+          (click)="switchTab('help')">
+          ❓ Help
         </button>
       </div>
 
@@ -350,6 +364,16 @@ interface Contract {
       <!-- V2 Dashboard Tab -->
       <div *ngIf="activeTab === 'v2'" class="tab-content">
         <app-dashboard-v2 [contracts]="contracts"></app-dashboard-v2>
+      </div>
+
+      <!-- Change Track Tab -->
+      <div *ngIf="activeTab === 'change-track'" class="tab-content">
+        <app-change-track></app-change-track>
+      </div>
+
+      <!-- Help Tab -->
+      <div *ngIf="activeTab === 'help'" class="tab-content">
+        <app-help></app-help>
       </div>
     </div>
   `,
@@ -851,7 +875,7 @@ interface Contract {
 export class App {
   protected readonly title = signal('trading-dashboard');
   Math = Math;
-  activeTab: 'input' | 'dashboard' | 'v2' = 'input';
+  activeTab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'help' = 'input';
   contracts: Contract[] = [];
   uploadedFileName: string = '';
   uploadInProgress = false;
@@ -877,7 +901,7 @@ export class App {
     return `${year}-${month}`;
   }
 
-  switchTab(tab: 'input' | 'dashboard' | 'v2') {
+  switchTab(tab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'help') {
     this.activeTab = tab;
   }
 
