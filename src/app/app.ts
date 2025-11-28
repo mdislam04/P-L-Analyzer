@@ -187,6 +187,10 @@ interface Contract {
                 <span class="contract-name">{{ contract.name }}</span>
                 <span class="contract-value profit">₹{{ formatNumber(contract.pnl) }}</span>
               </div>
+              <div class="category-summary">
+                Total Profit:
+                <span class="summary-profit">₹{{ formatNumber(getRegularProfitTotal()) }}</span>
+              </div>
             </div>
 
             <div class="card">
@@ -200,6 +204,10 @@ interface Contract {
                 class="contract-list-item">
                 <span class="contract-name">{{ contract.name }}</span>
                 <span class="contract-value loss">₹{{ formatNumber(contract.pnl) }}</span>
+              </div>
+              <div class="category-summary">
+                Total Loss:
+                <span class="summary-loss">₹{{ formatNumber(getRegularLossTotal()) }}</span>
               </div>
             </div>
 
@@ -242,6 +250,13 @@ interface Contract {
                 </div>
               </div>
             </div>
+            <div class="category-summary">
+              NIFTY FUTURES Profit:
+              <span class="summary-profit">₹{{ formatNumber(getNiftyFuturesProfitTotal()) }}</span>
+              |
+              NIFTY FUTURES Loss:
+              <span class="summary-loss">₹{{ formatNumber(getNiftyFuturesLossTotal()) }}</span>
+            </div>
           </div>
 
           <!-- NIFTY Options Performance Card -->
@@ -279,6 +294,13 @@ interface Contract {
                   <span class="contract-value loss">₹{{ formatNumber(contract.pnl) }}</span>
                 </div>
               </div>
+            </div>
+            <div class="category-summary">
+              NIFTY OPTION Profit:
+              <span class="summary-profit">₹{{ formatNumber(getNiftyOptionsProfitTotal()) }}</span>
+              |
+              NIFTY OPTION Loss:
+              <span class="summary-loss">₹{{ formatNumber(getNiftyOptionsLossTotal()) }}</span>
             </div>
           </div>
 
@@ -762,6 +784,23 @@ interface Contract {
       font-weight: bold;
     }
 
+    .category-summary {
+      margin-top: 8px;
+      color: #bbb;
+      font-size: 0.85em;
+      text-align: center;
+    }
+
+    .summary-profit {
+      color: #4caf50;
+      font-weight: 700;
+    }
+
+    .summary-loss {
+      color: #f44336;
+      font-weight: 700;
+    }
+
     .empty-state {
       text-align: center;
       padding: 60px 20px;
@@ -911,6 +950,18 @@ export class App {
     return Math.abs(this.contracts.filter(c => c.pnl < 0).reduce((sum, c) => sum + c.pnl, 0));
   }
 
+  getRegularProfitTotal(): number {
+    return this.contracts
+      .filter(c => c.type === 'regular' && c.pnl > 0)
+      .reduce((sum, c) => sum + c.pnl, 0);
+  }
+
+  getRegularLossTotal(): number {
+    return Math.abs(this.contracts
+      .filter(c => c.type === 'regular' && c.pnl < 0)
+      .reduce((sum, c) => sum + c.pnl, 0));
+  }
+
   getMajorProfits(): Contract[] {
     return this.contracts
       .filter(c => c.type === 'regular' && c.pnl > 0)
@@ -945,6 +996,18 @@ export class App {
       .reduce((sum, c) => sum + c.pnl, 0);
   }
 
+  getNiftyFuturesProfitTotal(): number {
+    return this.contracts
+      .filter(c => c.type === 'nifty' && !this.isNiftyOption(c) && c.pnl > 0)
+      .reduce((sum, c) => sum + c.pnl, 0);
+  }
+
+  getNiftyFuturesLossTotal(): number {
+    return Math.abs(this.contracts
+      .filter(c => c.type === 'nifty' && !this.isNiftyOption(c) && c.pnl < 0)
+      .reduce((sum, c) => sum + c.pnl, 0));
+  }
+
   isNiftyOption(contract: Contract): boolean {
     const name = contract.name.toUpperCase();
     return name.includes('NIFTY') && (name.includes('CE') || name.includes('PE'));
@@ -954,6 +1017,18 @@ export class App {
     return this.contracts
       .filter(c => this.isNiftyOption(c))
       .reduce((sum, c) => sum + c.pnl, 0);
+  }
+
+  getNiftyOptionsProfitTotal(): number {
+    return this.contracts
+      .filter(c => this.isNiftyOption(c) && c.pnl > 0)
+      .reduce((sum, c) => sum + c.pnl, 0);
+  }
+
+  getNiftyOptionsLossTotal(): number {
+    return Math.abs(this.contracts
+      .filter(c => this.isNiftyOption(c) && c.pnl < 0)
+      .reduce((sum, c) => sum + c.pnl, 0));
   }
 
   getNiftyOptionTopProfits(): Contract[] {
@@ -971,8 +1046,17 @@ export class App {
   }
 
   getMonthName(): string {
-    if (!this.contracts[0]?.monthYear) return '';
-    const date = new Date(this.contracts[0].monthYear + '-01');
+    if (this.contracts.length === 0) return '';
+    // Use the most recent (max) monthYear from all contracts to avoid relying on array order
+    const latest = this.contracts
+      .map(c => c.monthYear)
+      .filter(Boolean)
+      .reduce((max, curr) => {
+        const mDate = new Date(max + '-01').getTime();
+        const cDate = new Date(curr + '-01').getTime();
+        return cDate > mDate ? curr : max;
+      });
+    const date = new Date(latest + '-01');
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
   }
 
