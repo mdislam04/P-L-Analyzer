@@ -1,6 +1,8 @@
 import { Component, Input, ViewChild, ElementRef, AfterViewInit, OnChanges, SimpleChanges, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import Chart from 'chart.js/auto';
+import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 
 interface Contract {
   monthYear: string;
@@ -14,7 +16,7 @@ interface Contract {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="v2-container" *ngIf="contracts">
+    <div class="v2-container" *ngIf="contracts" id="v2-dashboard-content">
       <div class="v2-header">
         <div class="v2-title">V2 PERFORMANCE SNAPSHOT</div>
         <div class="v2-period" *ngIf="latestMonth">{{ latestMonth }}</div>
@@ -22,6 +24,7 @@ interface Contract {
           P & L {{ netPnL >= 0 ? '+' : '-' }}₹{{ formatNumber(absNet) }}
         </div>
         <div class="v2-win-rate">WIN RATE: {{ winRate.toFixed(1) }}%</div>
+        <button class="export-btn" (click)="exportV2AsImage()">📸 Export V2 as Image</button>
       </div>
 
       <div class="v2-grid">
@@ -142,6 +145,8 @@ interface Contract {
     .v2-net.profit { color: #4caf50; }
     .v2-net.loss { color: #f44336; }
     .v2-win-rate { font-size: 0.8em; background: rgba(255,193,7,0.15); padding: 6px 10px; border-radius: 12px; letter-spacing: 1px; }
+    .export-btn { justify-self: end; padding: 8px 14px; background: #2196f3; color: #fff; font-size: 12px; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
+    .export-btn:hover { background: #1976d2; transform: translateY(-2px); }
     .v2-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 16px; }
     .metric-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
     .metric-card .label { font-size: 0.65em; letter-spacing: 1px; color: #aaa; font-weight: 600; }
@@ -408,5 +413,50 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
     } as any;
     this.chartProfitLoss?.destroy();
     this.chartProfitLoss = new Chart(ctxC, { type: 'pie', data: dataC, options: commonOptions, plugins: [drawLabelsPlugin] });
+  }
+
+  async exportV2AsImage() {
+    const el = document.getElementById('v2-dashboard-content');
+    if (!el) return;
+    const overlay = document.createElement('div');
+    overlay.style.position = 'absolute';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.background = '#1a2332';
+    overlay.style.zIndex = '-1';
+    el.style.position = 'relative';
+    el.prepend(overlay);
+    await new Promise(r => setTimeout(r, 50));
+    try {
+      const dataUrl = await toPng(el as HTMLElement, { backgroundColor: '#1a2332', pixelRatio: 3, cacheBust: true });
+      overlay.remove();
+      (el as HTMLElement).style.position = '';
+      const link = document.createElement('a');
+      link.download = `trading-dashboard-v2-${(this.latestMonth||'').replace(/\s/g,'-')}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (primaryError) {
+      try {
+        const canvas = await html2canvas(el as HTMLElement, { backgroundColor: '#1a2332', scale: 3, logging: false, useCORS: true, allowTaint: false, width: (el as HTMLElement).offsetWidth, height: (el as HTMLElement).offsetHeight });
+        overlay.remove();
+        (el as HTMLElement).style.position = '';
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `trading-dashboard-v2-${(this.latestMonth||'').replace(/\s/g,'-')}.png`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+          }
+        }, 'image/png');
+      } catch (fallbackError) {
+        overlay.remove();
+        (el as HTMLElement).style.position = '';
+        console.error('Error exporting V2 dashboard:', fallbackError);
+      }
+    }
   }
 }
