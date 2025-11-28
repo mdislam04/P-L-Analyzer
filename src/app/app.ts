@@ -75,6 +75,19 @@ interface Contract {
               <strong>Excel Format:</strong> Column A: Symbol, Column B: Realized P&L (Type auto-detected from symbol name)
 
             </div>
+            <!-- Upload feedback UI -->
+            <div class="upload-feedback" *ngIf="uploadInProgress || uploadStatusMessage">
+              <div *ngIf="uploadInProgress" class="progress-wrapper">
+                <div class="progress-bar">
+                  <div class="progress-fill" [style.width.%]="uploadProgress"></div>
+                </div>
+                <div class="progress-text">{{ uploadProgress }}% {{ uploadPhase }}</div>
+              </div>
+              <div *ngIf="!uploadInProgress && uploadStatusMessage" class="status-message" [class.success]="uploadSuccess" [class.error]="uploadError">
+                <span>{{ uploadStatusMessage }}</span>
+                <button class="close-status" (click)="clearUploadStatus()">✖</button>
+              </div>
+            </div>
           </div>
 
           <div class="divider">OR Enter Manually</div>
@@ -443,6 +456,17 @@ interface Contract {
       background: rgba(0, 0, 0, 0.2);
       border-radius: 5px;
     }
+
+    .upload-feedback { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .progress-wrapper { display: flex; flex-direction: column; gap: 6px; }
+    .progress-bar { position: relative; width: 100%; height: 10px; background: rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+    .progress-fill { position: absolute; top:0; left:0; height:100%; background: linear-gradient(90deg,#4caf50,#81c784); transition: width 0.15s ease; }
+    .progress-text { font-size: 0.75em; letter-spacing: 1px; color: #ccc; }
+    .status-message { display:flex; align-items:center; justify-content: space-between; gap:12px; padding:10px 14px; border-radius:8px; font-size:0.8em; }
+    .status-message.success { background: rgba(76,175,80,0.15); border:1px solid rgba(76,175,80,0.4); color:#4caf50; }
+    .status-message.error { background: rgba(244,67,54,0.15); border:1px solid rgba(244,67,54,0.4); color:#f44336; }
+    .close-status { background: transparent; border:none; color: #aaa; cursor:pointer; font-size: 0.9em; }
+    .close-status:hover { color: #fff; }
 
     .divider {
       text-align: center;
@@ -830,6 +854,12 @@ export class App {
   activeTab: 'input' | 'dashboard' | 'v2' = 'input';
   contracts: Contract[] = [];
   uploadedFileName: string = '';
+  uploadInProgress = false;
+  uploadProgress = 0;
+  uploadPhase = '';
+  uploadStatusMessage = '';
+  uploadSuccess = false;
+  uploadError = false;
 
   formData = {
     monthYear: this.getCurrentMonth(),
@@ -856,6 +886,22 @@ export class App {
     if (file) {
       this.uploadedFileName = file.name;
       const reader = new FileReader();
+      // Initialize progress state
+      this.uploadInProgress = true;
+      this.uploadProgress = 0;
+      this.uploadPhase = 'Loading file';
+      this.uploadStatusMessage = '';
+      this.uploadSuccess = false;
+      this.uploadError = false;
+
+      reader.onprogress = (e: ProgressEvent<FileReader>) => {
+        if (e.lengthComputable) {
+          const percent = Math.floor((e.loaded / e.total) * 40); // File load phase up to 40%
+          this.zone.run(() => {
+            this.uploadProgress = percent;
+          });
+        }
+      };
       
       reader.onload = (e: any) => {
         try {
@@ -868,6 +914,7 @@ export class App {
           // Skip header row and process data
           const newContracts: Contract[] = [];
           let successCount = 0;
+          this.uploadPhase = 'Parsing rows';
           for (let i = 1; i < jsonData.length; i++) {
             const row = jsonData[i];
             if (row[0] && row[1] !== undefined) {
@@ -886,25 +933,54 @@ export class App {
                 successCount++;
               }
             }
+            // Update parse progress (40% - 95%)
+            if (jsonData.length > 1) {
+              const progressPortion = ((i) / (jsonData.length - 1));
+              const mapped = 40 + Math.floor(progressPortion * 55); // 40 -> 95
+              if (mapped > this.uploadProgress) {
+                this.zone.run(() => { this.uploadProgress = mapped; });
+              }
+            }
           }
 
           // Ensure UI updates within Angular zone for immediate refresh
           this.zone.run(() => {
             this.contracts = [...this.contracts, ...newContracts];
-            this.cdr.detectChanges();
             this.uploadedFileName = file.name;
-            alert(`Successfully imported ${successCount} contracts from Excel!`);
+            this.uploadPhase = 'Finalizing';
+            // Ensure UI reaches 100% and triggers change detection
+            this.uploadProgress = Math.max(this.uploadProgress, 95);
+            requestAnimationFrame(() => {
+              this.uploadProgress = 100;
+              this.uploadInProgress = false;
+              this.uploadSuccess = true;
+              this.uploadStatusMessage = successCount === 0
+                ? 'No valid rows found.'
+                : `Imported ${successCount} contract${successCount !== 1 ? 's' : ''} successfully.`;
+              this.cdr.detectChanges();
+            });
+            this.cdr.detectChanges();
             // Reset file input to allow re-upload of same file
             event.target.value = '';
           });
         } catch (error) {
-          alert('Error reading Excel file. Please check the format.');
+          this.zone.run(() => {
+            this.uploadInProgress = false;
+            this.uploadError = true;
+            this.uploadStatusMessage = 'Error reading Excel file. Please check the format.';
+          });
           console.error(error);
         }
       };
 
       reader.readAsArrayBuffer(file);
     }
+  }
+
+  clearUploadStatus() {
+    this.uploadStatusMessage = '';
+    this.uploadSuccess = false;
+    this.uploadError = false;
   }
 
   downloadTemplate() {
