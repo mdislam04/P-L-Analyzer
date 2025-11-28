@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { toPng } from 'html-to-image';
+import { DashboardV2Component } from './dashboard-v2.component';
 
 
 
@@ -21,7 +22,7 @@ interface Contract {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DashboardV2Component],
   template: `
     <div class="container">
       <div class="nav-tabs">
@@ -36,6 +37,12 @@ interface Contract {
           [class.active]="activeTab === 'dashboard'"
           (click)="switchTab('dashboard')">
           📊 Dashboard
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'v2'"
+          (click)="switchTab('v2')">
+          🚀 V2 Dashboard
         </button>
       </div>
 
@@ -326,6 +333,10 @@ interface Contract {
             </div>
           </div>
         </div>
+      </div>
+      <!-- V2 Dashboard Tab -->
+      <div *ngIf="activeTab === 'v2'" class="tab-content">
+        <app-dashboard-v2 [contracts]="contracts"></app-dashboard-v2>
       </div>
     </div>
   `,
@@ -816,7 +827,7 @@ interface Contract {
 export class App {
   protected readonly title = signal('trading-dashboard');
   Math = Math;
-  activeTab: 'input' | 'dashboard' = 'input';
+  activeTab: 'input' | 'dashboard' | 'v2' = 'input';
   contracts: Contract[] = [];
   uploadedFileName: string = '';
 
@@ -836,7 +847,7 @@ export class App {
     return `${year}-${month}`;
   }
 
-  switchTab(tab: 'input' | 'dashboard') {
+  switchTab(tab: 'input' | 'dashboard' | 'v2') {
     this.activeTab = tab;
   }
 

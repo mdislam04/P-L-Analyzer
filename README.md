@@ -18,8 +18,30 @@ A comprehensive Angular-based trading performance dashboard for tracking and ana
 - **Overall Realized P&L**: Compact display of total profit/loss
 - **Major Profit Contributors**: Top 12 profitable regular contracts
 - **Major Loss Contributors**: Top 12 loss-making regular contracts
-- **NIFTY Profit**: Top 12 profitable NIFTY contracts
-- **NIFTY Loss**: Top 12 loss-making NIFTY contracts
+- **NIFTY Futures Performance**: Consolidated P&L with top movers
+- **NIFTY Options Performance**: Consolidated P&L with top movers
+### 🚀 V2 Dashboard (Experimental)
+- Compact performance snapshot with initial metrics
+- Advanced analytics foundation: max drawdown, win/loss streaks
+- Lightweight equity curve sparkline (placeholder)
+
+#### Metrics, Calculations & Usefulness
+- **Net P&L**: Sum of all `pnl`. Positive → net profit; negative → net loss.
+- **Total Trades**: Count of loaded contracts.
+- **Winning Trades**: Count where `pnl > 0`.
+- **Losing Trades**: Count where `pnl < 0`.
+- **Win Rate (%)**: `(Winning Trades / Total Trades) * 100`. Gauges consistency.
+- **Average Win (₹)**: `Sum(pnl > 0) / Winning Trades`. Typical profitable trade size.
+- **Average Loss (₹)**: `Abs(Sum(pnl < 0)) / Losing Trades`. Typical losing trade size.
+- **Profit Factor**: `Sum(pnl > 0) / Abs(Sum(pnl < 0))`. >1 indicates quality of returns vs losses.
+- **Max Drawdown (₹)**: Max peak-to-trough decline of cumulative P&L. Critical for risk tolerance.
+- **Longest Win Streak**: Max consecutive `pnl > 0`. Signals positive momentum.
+- **Longest Loss Streak**: Max consecutive `pnl < 0`. Highlights risk of tilt/regime shift.
+
+#### Equity Curve Sparkline (Placeholder)
+- Built from the cumulative sum of `pnl`, normalized to fit a compact visual. Intended as a stopgap before full charting.
+
+See `docs/dashboardv2.md` for the full V2 roadmap and design.
 - **Monthly Summary**: Concise overview of total profit, loss, and net P&L
 
 ### 💡 Key Capabilities
