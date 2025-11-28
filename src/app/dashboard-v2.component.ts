@@ -76,6 +76,10 @@ interface Contract {
           <canvas #chartNiftySplit></canvas>
         </div>
         <div class="chart-card">
+          <div class="chart-title">NIFTY Options – Profit vs Loss</div>
+          <canvas #chartOptionsProfitLoss></canvas>
+        </div>
+        <div class="chart-card">
           <div class="chart-title">Profit vs Loss (Abs)</div>
           <canvas #chartProfitLoss></canvas>
         </div>
@@ -178,10 +182,12 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
   @Input() contracts: Contract[] = [];
   @ViewChild('chartRegularNifty') chartRegularNiftyRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartNiftySplit') chartNiftySplitRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('chartOptionsProfitLoss') chartOptionsProfitLossRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartProfitLoss') chartProfitLossRef!: ElementRef<HTMLCanvasElement>;
 
   private chartRegularNifty?: any;
   private chartNiftySplit?: any;
+  private chartOptionsProfitLoss?: any;
   private chartProfitLoss?: any;
 
   get latestMonth(): string | null {
@@ -322,6 +328,7 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
   private destroyCharts(): void {
     this.chartRegularNifty?.destroy(); this.chartRegularNifty = undefined;
     this.chartNiftySplit?.destroy(); this.chartNiftySplit = undefined;
+    this.chartOptionsProfitLoss?.destroy(); this.chartOptionsProfitLoss = undefined;
     this.chartProfitLoss?.destroy(); this.chartProfitLoss = undefined;
   }
 
@@ -329,8 +336,9 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
     // Ensure canvases exist
     const ctxA = this.chartRegularNiftyRef?.nativeElement.getContext('2d');
     const ctxB = this.chartNiftySplitRef?.nativeElement.getContext('2d');
+    const ctxD = this.chartOptionsProfitLossRef?.nativeElement.getContext('2d');
     const ctxC = this.chartProfitLossRef?.nativeElement.getContext('2d');
-    if (!ctxA || !ctxB || !ctxC) return;
+    if (!ctxA || !ctxB || !ctxC || !ctxD) return;
 
     const drawLabelsPlugin = {
       id: 'drawLabelsPlugin',
@@ -397,6 +405,26 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
     } as any;
     this.chartNiftySplit?.destroy();
     this.chartNiftySplit = new Chart(ctxB, { type: 'pie', data: dataB, options: commonOptions, plugins: [drawLabelsPlugin] });
+
+    // NIFTY Options Profit vs Loss
+    const optionsProfit = this.contracts.filter(c => this.isNiftyOption(c) && c.pnl > 0).reduce((s,c)=> s + c.pnl, 0);
+    const optionsLossAbs = Math.abs(this.contracts.filter(c => this.isNiftyOption(c) && c.pnl < 0).reduce((s,c)=> s + c.pnl, 0));
+    const optionsProfitColor = '#4caf50';
+    const optionsLossColor = '#ff6e6e';
+    const dataD = {
+      labels: ['Options Profit', 'Options Loss'],
+      datasets: [{
+        data: [Math.abs(optionsProfit), Math.abs(optionsLossAbs)],
+        backgroundColor: [optionsProfitColor, optionsLossColor],
+        borderColor: '#ffffff', borderWidth: 2,
+        _formattedLabels: [
+          `+₹${this.formatNumber(Math.abs(optionsProfit))}`,
+          `-₹${this.formatNumber(Math.abs(optionsLossAbs))}`
+        ]
+      }]
+    } as any;
+    this.chartOptionsProfitLoss?.destroy();
+    this.chartOptionsProfitLoss = new Chart(ctxD, { type: 'pie', data: dataD, options: commonOptions, plugins: [drawLabelsPlugin] });
 
     // Profit vs Loss
     const dataC = {
