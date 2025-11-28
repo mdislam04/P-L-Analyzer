@@ -76,7 +76,7 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
     .icon-btn.delete { background:#ff6e6e; color:#fff; }
     .icon-btn.delete:hover { background:#f44336; }
     .empty { font-size:0.7em; color:#777; padding:4px 0; }
-    .entry-list { display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; }
+    .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; }
     .entry-item { display:grid; grid-template-columns: 1fr auto auto; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
     .entry-item:last-child { border-bottom:none; }
     .date { font-size:0.7em; color:#bbb; }
