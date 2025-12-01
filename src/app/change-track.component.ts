@@ -29,7 +29,7 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
             <div class="card-title">{{ card.name }}</div>
             <div class="header-actions">
               <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
-           
+              <button class="icon-btn fullscreen" (click)="toggleExpand(card)" [attr.aria-label]="card.expanded ? 'Exit full screen' : 'Full screen'">⛶</button>
               <button *ngIf="card.expanded" class="icon-btn close" (click)="toggleExpand(card)" aria-label="Close fullscreen">✖</button>
             </div>
           </div>
