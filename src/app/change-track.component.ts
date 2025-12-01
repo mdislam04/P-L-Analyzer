@@ -1,9 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 interface ChangeEntry { date: string; value: number; }
-interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: string; newEntryValue: number | null; duplicateDate?: boolean; }
+interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: string; newEntryValue: number | null; duplicateDate?: boolean; expanded?: boolean; }
 
 @Component({
   selector: 'app-change-track',
@@ -23,11 +23,15 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
       </div>
       <div *ngIf="duplicateWarning" class="warn">Contract already exists.</div>
 
-      <div class="cards-wrapper">
-        <div *ngFor="let card of cards; trackBy: trackByName" class="ct-card">
+      <div class="cards-wrapper" [class.expanding]="anyExpanded">
+        <div *ngFor="let card of cards; trackBy: trackByName" class="ct-card" [class.expanded]="card.expanded">
           <div class="card-header">
             <div class="card-title">{{ card.name }}</div>
-            <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
+            <div class="header-actions">
+              <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
+           
+              <button *ngIf="card.expanded" class="icon-btn close" (click)="toggleExpand(card)" aria-label="Close fullscreen">✖</button>
+            </div>
           </div>
           <div class="entry-add-row">
             <input type="date" [(ngModel)]="card.newEntryDate" />
@@ -64,6 +68,7 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
     .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap:18px; align-items:start; }
     .ct-card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; display:flex; flex-direction: column; gap:12px; position:relative; }
     .card-header { display:flex; justify-content: space-between; align-items:center; gap:8px; }
+    .header-actions { display:flex; gap:6px; align-items:center; }
     .card-title { font-size:0.9em; font-weight:600; letter-spacing:1px; color:#ffc107; }
     .entry-add-row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:center; z-index:1; margin-top:4px; }
     .warn.small { font-size:0.65em; margin-top:-4px; }
@@ -73,14 +78,28 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
     .icon-btn.add.header-add { flex-shrink:0; }
     .icon-btn.add .plus-icon { pointer-events:none; }
     .icon-btn.add:hover { background:#43a047; }
+    .icon-btn.fullscreen { background: rgba(255,255,255,0.15); color:#fff; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.25); }
+    .icon-btn.fullscreen:hover { background: rgba(255,255,255,0.25); }
+    .icon-btn.close { background:#ff6e6e; color:#fff; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.25); margin-right:68px; }
+    .icon-btn.close:hover { background:#f44336; }
     .icon-btn.delete { background:#ff6e6e; color:#fff; }
     .icon-btn.delete:hover { background:#f44336; }
     .empty { font-size:0.7em; color:#777; padding:4px 0; }
-    .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; }
-    .entry-item { display:grid; grid-template-columns: 1fr auto auto; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; padding-right:4px; }
+    .ct-card.expanded { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; margin:0; border-radius:0; padding:28px 36px; background:#1a2332; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); overflow:auto; display:flex; flex-direction:column; }
+    .ct-card.expanded .entry-list { max-height: none; }
+    .ct-card.expanded { padding:40px 56px; }
+    .ct-card.expanded .card-title { font-size:1.2em; }
+    .ct-card.expanded .entry-item { padding:12px 4px; grid-template-columns: 160px 1fr 54px; }
+    .ct-card.expanded .value { font-size:1em; }
+    .ct-card.expanded .date { font-size:0.75em; }
+    .ct-card.expanded .entry-add-row input { font-size:0.9em; }
+    .ct-card.expanded .entry-add-row input { font-size:0.9em; }
+    .cards-wrapper.expanding .ct-card:not(.expanded) { display:none; }
+    .entry-item { display:grid; grid-template-columns: 140px 1fr 50px; gap:12px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
     .entry-item:last-child { border-bottom:none; }
     .date { font-size:0.7em; color:#bbb; }
-    .value { font-size:0.85em; font-weight:600; }
+    .value { font-size:0.85em; font-weight:600; text-align:left; }
     .value.profit { color:#4caf50; }
     .value.loss { color:#ff6e6e; }
     .footer-note { font-size:0.6em; color:#888; text-align:center; margin-top:4px; }
@@ -122,6 +141,20 @@ export class ChangeTrackComponent implements OnInit {
     card.entries.unshift({ date, value: card.newEntryValue });
     card.newEntryValue = null;
     this.saveToStorage();
+  }
+
+  toggleExpand(card: ChangeCard) {
+    card.expanded = !card.expanded;
+  }
+
+  get anyExpanded(): boolean { return this.cards.some(c => c.expanded); }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      const expanded = this.cards.find(c => c.expanded);
+      if (expanded) expanded.expanded = false;
+    }
   }
 
   clearAllCards() {
