@@ -8,6 +8,7 @@ import { toPng } from 'html-to-image';
 import { DashboardV2Component } from './dashboard-v2.component';
 import { HelpComponent } from './help.component';
 import { ChangeTrackComponent } from './change-track.component';
+import { StockRadarComponent } from './stock-radar.component';
 
 
 
@@ -24,7 +25,7 @@ interface Contract {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, DashboardV2Component, HelpComponent, ChangeTrackComponent],
+  imports: [CommonModule, FormsModule, DashboardV2Component, HelpComponent, ChangeTrackComponent, StockRadarComponent],
   template: `
     <div class="container">
       <div class="nav-tabs">
@@ -51,6 +52,12 @@ interface Contract {
           [class.active]="activeTab === 'change-track'"
           (click)="switchTab('change-track')">
           🔄 Change Track
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'stock-radar'"
+          (click)="switchTab('stock-radar')">
+          📈 Stock Radar
         </button>
         <button 
           class="tab-btn" 
@@ -369,6 +376,11 @@ interface Contract {
       <!-- Change Track Tab -->
       <div *ngIf="activeTab === 'change-track'" class="tab-content">
         <app-change-track></app-change-track>
+      </div>
+
+      <!-- Stock Radar Tab -->
+      <div *ngIf="activeTab === 'stock-radar'" class="tab-content">
+        <app-stock-radar></app-stock-radar>
       </div>
 
       <!-- Help Tab -->
@@ -875,7 +887,7 @@ interface Contract {
 export class App {
   protected readonly title = signal('trading-dashboard');
   Math = Math;
-  activeTab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'help' = 'input';
+  activeTab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'stock-radar' | 'help' = 'input';
   contracts: Contract[] = [];
   uploadedFileName: string = '';
   uploadInProgress = false;
@@ -901,7 +913,7 @@ export class App {
     return `${year}-${month}`;
   }
 
-  switchTab(tab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'help') {
+  switchTab(tab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'stock-radar' | 'help') {
     this.activeTab = tab;
   }
 
