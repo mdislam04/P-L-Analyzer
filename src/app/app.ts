@@ -1051,6 +1051,12 @@ export class App {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
+          // Smart month detection: Parse contract names and find most common month
+          const detectedMonth = this.detectMonthFromContracts(jsonData);
+          if (detectedMonth) {
+            this.formData.monthYear = detectedMonth;
+          }
+
           // Skip header row and process data
           const newContracts: Contract[] = [];
           let successCount = 0;
@@ -1088,6 +1094,21 @@ export class App {
             this.contracts = [...this.contracts, ...newContracts];
             this.uploadedFileName = file.name;
             this.uploadPhase = 'Finalizing';
+            
+            // Update formData.monthYear to the latest month in contracts array
+            // This ensures the dashboard dropdown shows the correct month
+            if (this.contracts.length > 0) {
+              const latestMonth = this.contracts
+                .map(c => c.monthYear)
+                .filter(Boolean)
+                .reduce((max, curr) => {
+                  const mDate = new Date(max + '-01').getTime();
+                  const cDate = new Date(curr + '-01').getTime();
+                  return cDate > mDate ? curr : max;
+                });
+              this.formData.monthYear = latestMonth;
+            }
+            
             // Ensure UI reaches 100% and triggers change detection
             this.uploadProgress = Math.max(this.uploadProgress, 95);
             requestAnimationFrame(() => {
@@ -1370,5 +1391,91 @@ export class App {
         alert('Failed to export dashboard. Please try again.');
       }
     }
+  }
+
+  // Smart month detection from contract names
+  private detectMonthFromContracts(jsonData: any[][]): string | null {
+    const monthCounts = new Map<string, number>();
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // 1-12
+    
+    // Month patterns to detect in contract names
+    const monthPatterns = [
+      { pattern: /JAN/i, month: 1 },
+      { pattern: /FEB/i, month: 2 },
+      { pattern: /MAR/i, month: 3 },
+      { pattern: /APR/i, month: 4 },
+      { pattern: /MAY/i, month: 5 },
+      { pattern: /JUN/i, month: 6 },
+      { pattern: /JUL/i, month: 7 },
+      { pattern: /AUG/i, month: 8 },
+      { pattern: /SEP/i, month: 9 },
+      { pattern: /OCT/i, month: 10 },
+      { pattern: /NOV/i, month: 11 },
+      { pattern: /DEC/i, month: 12 },
+      // Single letter NIFTY patterns: N11 = Nov (11th month), D12 = Dec (12th month)
+      { pattern: /N11/i, month: 11 },
+      { pattern: /D12/i, month: 12 },
+      { pattern: /J01/i, month: 1 },  // Jan
+      { pattern: /F02/i, month: 2 },  // Feb
+      { pattern: /M03/i, month: 3 },  // Mar
+      { pattern: /A04/i, month: 4 },  // Apr
+      { pattern: /M05/i, month: 5 },  // May
+      { pattern: /J06/i, month: 6 },  // Jun
+      { pattern: /J07/i, month: 7 },  // Jul
+      { pattern: /A08/i, month: 8 },  // Aug
+      { pattern: /S09/i, month: 9 },  // Sep
+      { pattern: /O10/i, month: 10 }, // Oct
+    ];
+
+    let contractsWithMonthInfo = 0;
+    let totalContracts = 0;
+
+    // Parse contract names and count months
+    for (let i = 1; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      if (row[0]) {
+        totalContracts++;
+        const contractName = String(row[0]).trim().toUpperCase();
+        
+        // Try to extract year from contract name (25 = 2025, 26 = 2026)
+        let year = currentYear;
+        const yearMatch = contractName.match(/(\d{2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|[JFMASOND]\d{2})/i);
+        if (yearMatch) {
+          const shortYear = parseInt(yearMatch[1]);
+          year = shortYear >= 0 && shortYear <= 50 ? 2000 + shortYear : 1900 + shortYear;
+        }
+        
+        // Check each month pattern
+        let monthFound = false;
+        for (const { pattern, month } of monthPatterns) {
+          if (pattern.test(contractName)) {
+            const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+            monthCounts.set(monthKey, (monthCounts.get(monthKey) || 0) + 1);
+            contractsWithMonthInfo++;
+            monthFound = true;
+            break; // Only count first match per contract
+          }
+        }
+      }
+    }
+
+    // If we found month info in at least some contracts, use the most common one
+    if (contractsWithMonthInfo > 0) {
+      let maxCount = 0;
+      let detectedMonth: string | null = null;
+      
+      for (const [month, count] of monthCounts) {
+        if (count > maxCount) {
+          maxCount = count;
+          detectedMonth = month;
+        }
+      }
+      
+      return detectedMonth;
+    }
+
+    // Fallback: If no month patterns found in any contract, use current month
+    return `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
   }
 }
