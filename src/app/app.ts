@@ -9,6 +9,7 @@ import { DashboardV2Component } from './dashboard-v2.component';
 import { HelpComponent } from './help.component';
 import { ChangeTrackComponent } from './change-track.component';
 import { StockRadarComponent } from './stock-radar.component';
+import { GoogleDriveService } from './google-drive.service';
 
 
 
@@ -65,6 +66,21 @@ interface Contract {
           (click)="switchTab('help')">
           ❓ Help
         </button>
+        
+        <!-- Google Drive Connect Button -->
+        <div class="drive-connect-section">
+          <button 
+            *ngIf="!driveService.isConnected()" 
+            (click)="connectGoogleDrive()" 
+            class="btn-connect-drive"
+            [disabled]="isConnectingDrive">
+            {{ isConnectingDrive ? '⏳ Connecting...' : '🔗 Connect Drive' }}
+          </button>
+          <div *ngIf="driveService.isConnected()" class="drive-status">
+            <span class="drive-connected">✅ Drive Connected</span>
+            <button (click)="disconnectGoogleDrive()" class="btn-disconnect-drive">Disconnect</button>
+          </div>
+        </div>
       </div>
 
       <!-- Input Tab -->
@@ -414,6 +430,8 @@ interface Contract {
       display: flex;
       gap: 10px;
       margin-bottom: 30px;
+      flex-wrap: wrap;
+      align-items: center;
     }
 
     .tab-btn {
@@ -430,6 +448,63 @@ interface Contract {
     .tab-btn.active {
       background: rgba(255, 193, 7, 0.2);
       border-color: #ffc107;
+    }
+
+    .drive-connect-section {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-connect-drive {
+      padding: 10px 20px;
+      background: #4285f4;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+
+    .btn-connect-drive:hover:not(:disabled) {
+      background: #3367d6;
+      transform: translateY(-2px);
+    }
+
+    .btn-connect-drive:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .drive-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .drive-connected {
+      font-size: 14px;
+      color: #4caf50;
+      font-weight: 600;
+    }
+
+    .btn-disconnect-drive {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-disconnect-drive:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
 
     .input-section {
@@ -904,7 +979,32 @@ export class App {
     contractPnL: null as number | null
   };
 
-  constructor(private cdr: ChangeDetectorRef, private zone: NgZone) {}
+  isConnectingDrive = false;
+
+  constructor(
+    private cdr: ChangeDetectorRef, 
+    private zone: NgZone,
+    public driveService: GoogleDriveService
+  ) {}
+
+  async connectGoogleDrive() {
+    this.isConnectingDrive = true;
+    try {
+      await this.driveService.initiateAuth();
+      alert('✅ Google Drive connected successfully!');
+    } catch (error) {
+      console.error('Google Drive connection failed:', error);
+      alert('❌ Failed to connect Google Drive. Please try again.');
+    } finally {
+      this.isConnectingDrive = false;
+    }
+  }
+
+  disconnectGoogleDrive() {
+    if (confirm('Disconnect Google Drive? You can reconnect anytime.')) {
+      this.driveService.disconnect();
+    }
+  }
 
   getCurrentMonth(): string {
     const now = new Date();

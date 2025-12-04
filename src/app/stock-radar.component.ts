@@ -1,10 +1,7 @@
 import { Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { environment } from '../environments/environment';
-
-// Google Identity Services type declaration
-declare const google: any;
+import { GoogleDriveService } from './google-drive.service';
 
 interface StockLevel {
   id: string;
@@ -29,13 +26,6 @@ interface StockCard {
   newSupportValue?: number | null;
   newResistanceValue?: number | null;
   newNoteText?: string;
-}
-
-interface GoogleDriveConfig {
-  accessToken: string | null;
-  refreshToken: string | null;
-  expiresAt: number | null;
-  fileId: string | null;
 }
 
 interface StockRadarData {
@@ -65,24 +55,14 @@ interface StockRadarData {
         />
         <button (click)="addStockCard()" class="btn-add-stock">+ Add Stock Card</button>
         
-        <!-- Google Drive Section -->
-        <div class="google-drive-section">
-          <button 
-            *ngIf="!isGoogleDriveConnected()" 
-            (click)="initiateGoogleAuth()" 
-            class="btn-connect-drive">
-            🔗 Connect Google Drive
-          </button>
-          
-          <div *ngIf="isGoogleDriveConnected()" class="drive-controls">
-            <button 
-              (click)="syncGoogleDrive()" 
-              class="btn-sync-drive"
-              [disabled]="isSyncing">
-              {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
-            </button>
-          </div>
-        </div>
+        <!-- Google Drive Sync Button -->
+        <button 
+          *ngIf="driveService.isConnected()" 
+          (click)="syncGoogleDrive()" 
+          class="btn-sync-drive"
+          [disabled]="isSyncing">
+          {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+        </button>
       </div>
 
       <!-- Status Messages -->
@@ -738,22 +718,20 @@ export class StockRadarComponent implements OnInit {
   duplicateStockName: boolean = false;
 
   // Google Drive state
-  googleDrive: GoogleDriveConfig = {
-    accessToken: null,
-    refreshToken: null,
-    expiresAt: null,
-    fileId: null
-  };
+  private driveFileName = 'stock-radar-data.json';
+  private driveFileId: string | null = null;
   isSyncing: boolean = false;
   statusMessage: string = '';
   statusType: 'success' | 'error' = 'success';
 
-  constructor(private cdr: ChangeDetectorRef) {}
+  constructor(
+    private cdr: ChangeDetectorRef,
+    public driveService: GoogleDriveService
+  ) {}
 
   ngOnInit(): void {
     this.loadFromLocalStorage();
-    this.loadGoogleDriveConfig();
-    this.handleOAuthCallback();
+    this.loadDriveFileId();
     // Keep all cards collapsed on load
     if (this.stockCards.length > 0) {
       this.stockCards.forEach(c => c.expanded = false);
@@ -931,346 +909,154 @@ export class StockRadarComponent implements OnInit {
 
   // ============= GOOGLE DRIVE INTEGRATION =============
 
-  // Check if connected
-  isGoogleDriveConnected(): boolean {
-    return !!this.googleDrive.accessToken;
-  }
-
-  // Google Identity Services (New Approach)
-  async initiateGoogleAuth(): Promise<void> {
-    try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: environment.googleDrive.clientId,
-        scope: environment.googleDrive.scope,
-        callback: (response: any) => {
-          if (response.error) {
-            console.error('Auth error:', response);
-            this.showErrorMessage('Failed to connect Google Drive');
-            return;
-          }
-          
-          this.googleDrive.accessToken = response.access_token;
-          this.googleDrive.expiresAt = Date.now() + (response.expires_in * 1000);
-          // Note: Google Identity Services doesn't provide refresh tokens in browser
-          this.saveGoogleDriveConfig();
-          this.showSuccessMessage('✅ Google Drive connected successfully!');
-          this.cdr.detectChanges();
-        },
-      });
-      
-      client.requestAccessToken();
-    } catch (error) {
-      console.error('Auth initiation error:', error);
-      this.showErrorMessage('Failed to initiate Google Drive connection');
-    }
-  }
-
-  handleOAuthCallback(): void {
-    // Not needed with Google Identity Services
-  }
-
-  private async ensureValidToken(): Promise<void> {
-    if (!this.googleDrive.accessToken) {
-      throw new Error('Not authenticated');
-    }
-    
-    // Check if token is expired or will expire soon (within 5 minutes)
-    if (this.googleDrive.expiresAt && this.googleDrive.expiresAt - Date.now() < 300000) {
-      // Re-prompt user for new token (Google Identity Services doesn't support refresh tokens in browser)
-      this.showErrorMessage('Session expired. Please reconnect.');
-      this.googleDrive.accessToken = null;
-      this.googleDrive.expiresAt = null;
-      this.saveGoogleDriveConfig();
-      throw new Error('Token expired');
-    }
-  }
-
-  // Google Drive Operations
-  async saveToGoogleDrive(): Promise<void> {
-    if (this.stockCards.length === 0) {
-      this.showErrorMessage('No data to save. Add some stock cards first.');
+  /**
+   * Smart sync: Load from Drive if local is empty, otherwise save to Drive
+   */
+  async syncGoogleDrive(): Promise<void> {
+    if (!this.driveService.isConnected()) {
+      this.showErrorMessage('Please connect Google Drive first');
       return;
     }
 
-    console.log('Starting save to Google Drive...');
     this.isSyncing = true;
+    this.cdr.detectChanges();
+
     try {
-      await this.ensureValidToken();
-      console.log('Token validated, access token exists:', !!this.googleDrive.accessToken);
-      
-      const data: StockRadarData = {
-        version: '1.0',
-        lastModified: new Date().toISOString(),
-        cards: this.stockCards
-      };
-      
-      console.log('Data to save:', data);
-      
-      let fileId = this.googleDrive.fileId;
-      console.log('Existing file ID:', fileId);
-      
-      if (fileId) {
-        // Update existing file
-        await this.updateDriveFile(fileId, data);
-      } else {
-        // Create new file
-        fileId = await this.createDriveFile(data);
-        this.googleDrive.fileId = fileId;
-        this.saveGoogleDriveConfig();
-      }
-      
-      console.log('Save completed successfully');
-      this.showSuccessMessage('✅ Data synced to Google Drive!');
-      
-    } catch (error: any) {
-      console.error('Google Drive save error:', error);
-      this.handleGoogleDriveError(error);
-    } finally {
-      this.isSyncing = false;
-      this.cdr.detectChanges(); // Force UI update
-      console.log('Save operation finished, isSyncing set to false');
-    }
-  }
-
-  private async createDriveFile(data: StockRadarData): Promise<string> {
-    console.log('Creating new file on Google Drive...');
-    const metadata = {
-      name: 'stockradar.json',
-      mimeType: 'application/json'
-    };
-    
-    const boundary = '-------314159265358979323846';
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const closeDelim = `\r\n--${boundary}--`;
-    
-    const multipartBody = 
-      delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) +
-      delimiter +
-      'Content-Type: application/json\r\n\r\n' +
-      JSON.stringify(data) +
-      closeDelim;
-    
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.googleDrive.accessToken}`,
-        'Content-Type': `multipart/related; boundary="${boundary}"`
-      },
-      body: multipartBody
-    });
-    
-    console.log('Create file response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Create file error response:', errorText);
-      throw new Error(`Google Drive API error: ${response.status} - ${errorText}`);
-    }
-    
-    const result = await response.json();
-    console.log('File created successfully, ID:', result.id);
-    return result.id;
-  }
-
-  private async updateDriveFile(fileId: string, data: StockRadarData): Promise<void> {
-    console.log('Updating existing file on Google Drive, ID:', fileId);
-    const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${this.googleDrive.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    
-    console.log('Update file response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Update file error response:', errorText);
-      throw new Error(`Google Drive API error: ${response.status} - ${errorText}`);
-    }
-    
-    console.log('File updated successfully');
-  }
-
-  async loadFromGoogleDrive(): Promise<void> {
-    console.log('Starting load from Google Drive...');
-    this.isSyncing = true;
-    try {
-      await this.ensureValidToken();
-      
-      let fileId = this.googleDrive.fileId;
-      console.log('File ID:', fileId);
-      
-      if (!fileId) {
-        // Search for existing file
-        console.log('Searching for existing file...');
-        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='stockradar.json' and trashed=false`;
-        const searchResponse = await fetch(searchUrl, {
-          headers: { 'Authorization': `Bearer ${this.googleDrive.accessToken}` }
-        });
-        
-        const searchData = await searchResponse.json();
-        console.log('Search results:', searchData);
-        if (searchData.files && searchData.files.length > 0) {
-          fileId = searchData.files[0].id;
-          this.googleDrive.fileId = fileId;
-          this.saveGoogleDriveConfig();
-        } else {
-          console.log('No file found, setting isSyncing to false');
-          this.isSyncing = false;
-          this.cdr.detectChanges(); // Force UI update
-          this.showErrorMessage('No data found on Google Drive');
-          return;
-        }
-      }
-      
-      // Download file content
-      console.log('Downloading file...');
-      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-      const response = await fetch(downloadUrl, {
-        headers: { 'Authorization': `Bearer ${this.googleDrive.accessToken}` }
-      });
-      
-      console.log('Download response status:', response.status);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          this.googleDrive.fileId = null;
-          this.saveGoogleDriveConfig();
-          throw new Error('File not found on Google Drive');
-        }
-        throw new Error(`Google Drive API error: ${response.status}`);
-      }
-      
-      const data: StockRadarData = await response.json();
-      console.log('Data received:', data);
-      await this.mergeWithLocalData(data);
-      
-      console.log('Load completed successfully');
-      this.showSuccessMessage('✅ Data loaded from Google Drive!');
-      
-    } catch (error: any) {
-      console.error('Google Drive load error:', error);
-      this.handleGoogleDriveError(error);
-    } finally {
-      console.log('Finally block: setting isSyncing to false');
-      this.isSyncing = false;
-      this.cdr.detectChanges(); // Force UI update
-    }
-  }
-
-  private async mergeWithLocalData(cloudData: StockRadarData): Promise<void> {
-    // Auto-merge without confirmation
-    
-    this.stockCards = cloudData.cards;
-    this.saveToLocalStorage();
-    
-    // Keep all cards collapsed
-    if (this.stockCards.length > 0) {
-      this.stockCards.forEach(c => c.expanded = false);
-    }
-  }
-
-  async syncGoogleDrive(): Promise<void> {
-    console.log('Starting sync with Google Drive...');
-    this.isSyncing = true;
-    
-    try {
-      await this.ensureValidToken();
-      console.log('Token validated');
-      
       // If no local data, try to load from Drive
       if (this.stockCards.length === 0) {
-        console.log('No local data, loading from Drive...');
         await this.loadFromGoogleDrive();
-        this.showSuccessMessage('✅ Data restored from Google Drive!');
-        return;
-      }
-      
-      // Otherwise, save local data to Drive
-      const data: StockRadarData = {
-        version: '1.0',
-        lastModified: new Date().toISOString(),
-        cards: this.stockCards
-      };
-      
-      let fileId = this.googleDrive.fileId;
-      
-      if (fileId) {
-        // Update existing file
-        await this.updateDriveFile(fileId, data);
       } else {
-        // Create new file
-        fileId = await this.createDriveFile(data);
-        this.googleDrive.fileId = fileId;
-        this.saveGoogleDriveConfig();
+        // Otherwise, save local data to Drive
+        await this.saveToGoogleDrive();
       }
-      
-      console.log('Sync completed successfully');
-      this.showSuccessMessage('✅ Synced to Google Drive!');
-      
     } catch (error: any) {
       console.error('Sync error:', error);
-      this.handleGoogleDriveError(error);
+      this.showErrorMessage('❌ Sync failed: ' + (error.message || 'Unknown error'));
     } finally {
       this.isSyncing = false;
       this.cdr.detectChanges();
     }
   }
 
-  // Status Messages
+  /**
+   * Save current data to Google Drive
+   */
+  private async saveToGoogleDrive(): Promise<void> {
+    if (this.stockCards.length === 0) {
+      this.showErrorMessage('No data to save. Add some stock cards first.');
+      return;
+    }
+
+    const data: StockRadarData = {
+      version: '1.0',
+      lastModified: new Date().toISOString(),
+      cards: this.stockCards
+    };
+
+    try {
+      if (this.driveFileId) {
+        // Update existing file
+        await this.driveService.updateFile(this.driveFileId, data);
+        this.showSuccessMessage('✅ Synced to Google Drive!');
+      } else {
+        // Create new file
+        const fileId = await this.driveService.createFile(this.driveFileName, data);
+        this.driveFileId = fileId;
+        this.saveDriveFileId();
+        this.showSuccessMessage('✅ Synced to Google Drive!');
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Load data from Google Drive
+   */
+  private async loadFromGoogleDrive(): Promise<void> {
+    try {
+      // Search for file if we don't have fileId
+      let fileId = this.driveFileId;
+
+      if (!fileId) {
+        const file = await this.driveService.searchFile(this.driveFileName);
+        if (file) {
+          fileId = file.id;
+          this.driveFileId = fileId;
+          this.saveDriveFileId();
+        } else {
+          this.showErrorMessage('ℹ️ No data found on Google Drive');
+          return;
+        }
+      }
+
+      // Download file content
+      const driveData: StockRadarData = await this.driveService.downloadFile(fileId);
+
+      // Merge with local data
+      this.mergeWithLocalData(driveData);
+
+      this.showSuccessMessage('✅ Data restored from Google Drive!');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Merge Drive data with local data (auto-merge, replace local with Drive data)
+   */
+  private mergeWithLocalData(cloudData: StockRadarData): void {
+    this.stockCards = cloudData.cards;
+    this.saveToLocalStorage();
+
+    // Keep all cards collapsed
+    if (this.stockCards.length > 0) {
+      this.stockCards.forEach(c => c.expanded = false);
+    }
+  }
+
+  /**
+   * Load Drive file ID from localStorage
+   */
+  private loadDriveFileId(): void {
+    try {
+      const stored = localStorage.getItem('stockRadarDriveFileId');
+      if (stored) {
+        this.driveFileId = stored;
+      }
+    } catch (e) {
+      console.warn('Failed to load Drive file ID', e);
+    }
+  }
+
+  /**
+   * Save Drive file ID to localStorage
+   */
+  private saveDriveFileId(): void {
+    if (!this.driveFileId) return;
+    try {
+      localStorage.setItem('stockRadarDriveFileId', this.driveFileId);
+    } catch (e) {
+      console.warn('Failed to save Drive file ID', e);
+    }
+  }
+
+  /**
+   * Show success message
+   */
   private showSuccessMessage(message: string): void {
     this.statusMessage = message;
     this.statusType = 'success';
     setTimeout(() => this.statusMessage = '', 4000);
   }
 
+  /**
+   * Show error message
+   */
   private showErrorMessage(message: string): void {
     this.statusMessage = message;
     this.statusType = 'error';
     setTimeout(() => this.statusMessage = '', 6000);
-  }
-
-  private handleGoogleDriveError(error: any): void {
-    if (error.message?.includes('Not authenticated') || error.status === 401) {
-      this.showErrorMessage('Session expired. Please reconnect Google Drive.');
-      // Clear tokens on auth error
-      this.googleDrive = {
-        accessToken: null,
-        refreshToken: null,
-        expiresAt: null,
-        fileId: null
-      };
-      this.saveGoogleDriveConfig();
-    } else if (error.status === 403) {
-      this.showErrorMessage('Permission denied. Please grant access to Google Drive.');
-    } else if (error.status === 404) {
-      this.showErrorMessage('File not found on Google Drive.');
-    } else if (!navigator.onLine) {
-      this.showErrorMessage('No internet connection. Please try again when online.');
-    } else {
-      this.showErrorMessage(error.message || 'An error occurred. Please try again.');
-    }
-  }
-
-  // Google Drive Config Persistence
-  private saveGoogleDriveConfig(): void {
-    localStorage.setItem('googleDriveConfig', JSON.stringify(this.googleDrive));
-  }
-
-  private loadGoogleDriveConfig(): void {
-    const stored = localStorage.getItem('googleDriveConfig');
-    if (stored) {
-      try {
-        this.googleDrive = JSON.parse(stored);
-      } catch (e) {
-        console.error('Failed to parse Google Drive config:', e);
-      }
-    }
   }
 }
 

@@ -1,9 +1,16 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { GoogleDriveService } from './google-drive.service';
 
 interface ChangeEntry { date: string; value: number; }
 interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: string; newEntryValue: number | null; duplicateDate?: boolean; expanded?: boolean; }
+
+interface ChangeTrackData {
+  version: string;
+  lastModified: string;
+  data: { [key: string]: ChangeEntry[] };
+}
 
 @Component({
   selector: 'app-change-track',
@@ -13,13 +20,27 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
     <div class="ct-container">
       <div class="ct-header">
         <h1>🔄 Change Track</h1>
-        <p class="subtitle">Track daily change values per contract (local only)</p>
+        <p class="subtitle">Track daily change values per contract</p>
+      </div>
+
+      <!-- Status Messages -->
+      <div *ngIf="statusMessage" class="status-message" [class.success]="statusType === 'success'" [class.error]="statusType === 'error'">
+        {{ statusMessage }}
       </div>
 
       <div class="add-contract-bar">
         <input type="text" [(ngModel)]="newContractName" placeholder="Enter contract name (e.g., WIPRO25DECFUT)" />
         <button (click)="addContract()">ADD</button>
         <button class="clear-btn" (click)="clearAllCards()">CLEAR PAGE DATA</button>
+        
+        <!-- Google Drive Sync Button -->
+        <button 
+          *ngIf="driveService.isConnected()" 
+          (click)="syncGoogleDrive()" 
+          class="btn-sync-drive"
+          [disabled]="isSyncing">
+          {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+        </button>
       </div>
       <div *ngIf="duplicateWarning" class="warn">Contract already exists.</div>
 
@@ -104,6 +125,48 @@ interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: strin
     .value.loss { color:#ff6e6e; }
     .footer-note { font-size:0.6em; color:#888; text-align:center; margin-top:4px; }
     code { background: rgba(0,0,0,0.3); padding:2px 6px; border-radius:6px; font-size:0.85em; }
+    
+    .btn-sync-drive {
+      padding: 10px 20px;
+      background: #4285f4;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.85em;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all 0.3s;
+    }
+    
+    .btn-sync-drive:hover:not(:disabled) {
+      background: #3367d6;
+    }
+    
+    .btn-sync-drive:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .status-message {
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 0.9em;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    
+    .status-message.success {
+      background: rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+      color: #4caf50;
+    }
+    
+    .status-message.error {
+      background: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.4);
+      color: #f44336;
+    }
   `]
 })
 export class ChangeTrackComponent implements OnInit {
@@ -111,9 +174,20 @@ export class ChangeTrackComponent implements OnInit {
   cards: ChangeCard[] = [];
   duplicateWarning = false;
   private storageKey = 'changeTrackData';
+  private driveFileName = 'change-track-data.json';
+  private driveFileId: string | null = null;
+  isSyncing = false;
+  statusMessage = '';
+  statusType: 'success' | 'error' = 'success';
+
+  constructor(
+    public driveService: GoogleDriveService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.loadFromStorage();
+    this.loadDriveFileId();
   }
 
   trackByName(index: number, card: ChangeCard) { return card.name; }
@@ -206,5 +280,156 @@ export class ChangeTrackComponent implements OnInit {
       for (const c of this.cards) { obj[c.name] = c.entries; }
       localStorage.setItem(this.storageKey, JSON.stringify(obj));
     } catch (e) { console.warn('Failed to save change track data', e); }
+  }
+
+  // Google Drive Integration Methods
+
+  async syncGoogleDrive() {
+    if (!this.driveService.isConnected()) {
+      this.showStatus('Please connect Google Drive first', 'error');
+      return;
+    }
+
+    this.isSyncing = true;
+    this.cdr.detectChanges();
+
+    try {
+      // If no local data, load from Drive
+      if (this.cards.length === 0) {
+        await this.loadFromGoogleDrive();
+      } else {
+        // Otherwise, save to Drive
+        await this.saveToGoogleDrive();
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      this.showStatus('❌ Sync failed: ' + (error as Error).message, 'error');
+    } finally {
+      this.isSyncing = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private async saveToGoogleDrive() {
+    const data: ChangeTrackData = {
+      version: '1.0',
+      lastModified: new Date().toISOString(),
+      data: {}
+    };
+
+    for (const c of this.cards) {
+      data.data[c.name] = c.entries;
+    }
+
+    try {
+      if (this.driveFileId) {
+        // Update existing file
+        await this.driveService.updateFile(this.driveFileId, data);
+        this.showStatus('✅ Synced to Google Drive!', 'success');
+      } else {
+        // Create new file
+        const fileId = await this.driveService.createFile(this.driveFileName, data);
+        this.driveFileId = fileId;
+        this.saveDriveFileId();
+        this.showStatus('✅ Synced to Google Drive!', 'success');
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  private async loadFromGoogleDrive() {
+    try {
+      // Search for file
+      let fileId = this.driveFileId;
+      
+      if (!fileId) {
+        const file = await this.driveService.searchFile(this.driveFileName);
+        if (file) {
+          fileId = file.id;
+          this.driveFileId = fileId;
+          this.saveDriveFileId();
+        } else {
+          this.showStatus('ℹ️ No data found on Google Drive', 'error');
+          return;
+        }
+      }
+
+      // Download file content
+      const driveData: ChangeTrackData = await this.driveService.downloadFile(fileId);
+      
+      // Merge with local data
+      this.mergeWithLocalData(driveData.data);
+      
+      this.showStatus('✅ Data restored from Google Drive!', 'success');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  private mergeWithLocalData(driveData: { [key: string]: ChangeEntry[] }) {
+    const merged: { [key: string]: ChangeEntry[] } = {};
+    
+    // Start with existing local data
+    for (const card of this.cards) {
+      merged[card.name] = [...card.entries];
+    }
+    
+    // Merge Drive data
+    for (const name in driveData) {
+      if (!merged[name]) {
+        merged[name] = driveData[name];
+      } else {
+        // Merge entries by date (avoid duplicates)
+        const existingDates = new Set(merged[name].map(e => e.date));
+        for (const entry of driveData[name]) {
+          if (!existingDates.has(entry.date)) {
+            merged[name].push(entry);
+          }
+        }
+        // Sort by date descending
+        merged[name].sort((a, b) => b.date.localeCompare(a.date));
+      }
+    }
+
+    // Update cards
+    this.cards = Object.keys(merged).map(name => ({
+      name,
+      entries: merged[name],
+      newEntryDate: this.getToday(),
+      newEntryValue: null,
+      expanded: false
+    }));
+
+    this.saveToStorage();
+  }
+
+  private loadDriveFileId() {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem('changeTrackDriveFileId');
+      if (stored) {
+        this.driveFileId = stored;
+      }
+    } catch (e) {
+      console.warn('Failed to load Drive file ID', e);
+    }
+  }
+
+  private saveDriveFileId() {
+    if (typeof window === 'undefined' || !this.driveFileId) return;
+    try {
+      localStorage.setItem('changeTrackDriveFileId', this.driveFileId);
+    } catch (e) {
+      console.warn('Failed to save Drive file ID', e);
+    }
+  }
+
+  private showStatus(message: string, type: 'success' | 'error') {
+    this.statusMessage = message;
+    this.statusType = type;
+    setTimeout(() => {
+      this.statusMessage = '';
+    }, 4000);
   }
 }
