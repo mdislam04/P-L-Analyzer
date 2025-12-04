@@ -1,6 +1,7 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { environment } from '../environments/environment';
 
 interface StockLevel {
   id: string;
@@ -27,6 +28,19 @@ interface StockCard {
   newNoteText?: string;
 }
 
+interface GoogleDriveConfig {
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: number | null;
+  fileId: string | null;
+}
+
+interface StockRadarData {
+  version: string;
+  lastModified: string;
+  cards: StockCard[];
+}
+
 @Component({
   selector: 'app-stock-radar',
   standalone: true,
@@ -47,6 +61,30 @@ interface StockCard {
           class="date-input"
         />
         <button (click)="addStockCard()" class="btn-add-stock">+ Add Stock Card</button>
+        
+        <!-- Google Drive Section -->
+        <div class="google-drive-section">
+          <button 
+            *ngIf="!isGoogleDriveConnected()" 
+            (click)="initiateGoogleAuth()" 
+            class="btn-connect-drive">
+            🔗 Connect Google Drive
+          </button>
+          
+          <div *ngIf="isGoogleDriveConnected()" class="drive-controls">
+            <button 
+              (click)="syncGoogleDrive()" 
+              class="btn-sync-drive"
+              [disabled]="isSyncing">
+              {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Messages -->
+      <div *ngIf="statusMessage" class="status-message" [class.success]="statusType === 'success'" [class.error]="statusType === 'error'">
+        {{ statusMessage }}
       </div>
 
       <!-- Warning Messages -->
@@ -598,6 +636,96 @@ interface StockCard {
     input[type="number"]::-webkit-outer-spin-button {
       opacity: 1;
     }
+
+    /* Google Drive Section */
+    .google-drive-section {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-left: auto;
+    }
+
+    .btn-connect-drive {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(66, 133, 244, 0.3);
+      white-space: nowrap;
+    }
+
+    .btn-connect-drive:hover {
+      background: linear-gradient(135deg, #3367d6 0%, #2851b8 100%);
+      box-shadow: 0 4px 8px rgba(66, 133, 244, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .drive-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-sync-drive {
+      padding: 10px 20px;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-sync-drive:hover:not(:disabled) {
+      background: #1976d2;
+    }
+
+    .btn-sync-drive:disabled {
+      background: #90caf9;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    /* Status Messages */
+    .status-message {
+      padding: 12px 20px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 500;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .status-message.success {
+      background: rgba(76, 175, 80, 0.15);
+      border: 1px solid #4caf50;
+      color: #4caf50;
+    }
+
+    .status-message.error {
+      background: rgba(244, 67, 54, 0.15);
+      border: 1px solid #f44336;
+      color: #f44336;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   `]
 })
 export class StockRadarComponent implements OnInit {
@@ -606,11 +734,26 @@ export class StockRadarComponent implements OnInit {
   newStockDate: string = this.getTodayDate();
   duplicateStockName: boolean = false;
 
+  // Google Drive state
+  googleDrive: GoogleDriveConfig = {
+    accessToken: null,
+    refreshToken: null,
+    expiresAt: null,
+    fileId: null
+  };
+  isSyncing: boolean = false;
+  statusMessage: string = '';
+  statusType: 'success' | 'error' = 'success';
+
+  constructor(private cdr: ChangeDetectorRef) {}
+
   ngOnInit(): void {
     this.loadFromLocalStorage();
-    // Expand first card by default if exists
-    if (this.stockCards.length > 0 && !this.stockCards.some(c => c.expanded)) {
-      this.stockCards[0].expanded = true;
+    this.loadGoogleDriveConfig();
+    this.handleOAuthCallback();
+    // Keep all cards collapsed on load
+    if (this.stockCards.length > 0) {
+      this.stockCards.forEach(c => c.expanded = false);
     }
   }
 
@@ -763,6 +906,8 @@ export class StockRadarComponent implements OnInit {
     if (stored) {
       try {
         this.stockCards = JSON.parse(stored);
+        // Keep all cards collapsed
+        this.stockCards.forEach(c => c.expanded = false);
       } catch (e) {
         console.error('Failed to parse stored stock radar data:', e);
         this.stockCards = [];
@@ -780,4 +925,442 @@ export class StockRadarComponent implements OnInit {
       }
     }
   }
+
+  // ============= GOOGLE DRIVE INTEGRATION =============
+
+  // Check if connected
+  isGoogleDriveConnected(): boolean {
+    return !!this.googleDrive.accessToken;
+  }
+
+  // PKCE Helper Functions
+  private base64UrlEncode(array: Uint8Array): string {
+    const base64 = btoa(String.fromCharCode(...Array.from(array)));
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  private generateCodeVerifier(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return this.base64UrlEncode(array);
+  }
+
+  private async generateCodeChallenge(verifier: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return this.base64UrlEncode(new Uint8Array(hash));
+  }
+
+  // OAuth Flow
+  async initiateGoogleAuth(): Promise<void> {
+    try {
+      const verifier = this.generateCodeVerifier();
+      sessionStorage.setItem('code_verifier', verifier);
+      
+      const challenge = await this.generateCodeChallenge(verifier);
+      
+      const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      authUrl.searchParams.set('client_id', environment.googleDrive.clientId);
+      authUrl.searchParams.set('redirect_uri', environment.googleDrive.redirectUri);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('scope', environment.googleDrive.scope);
+      authUrl.searchParams.set('code_challenge', challenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('access_type', 'offline');
+      authUrl.searchParams.set('prompt', 'consent');
+      
+      window.location.href = authUrl.toString();
+    } catch (error) {
+      console.error('Auth initiation error:', error);
+      this.showErrorMessage('Failed to initiate Google Drive connection');
+    }
+  }
+
+  handleOAuthCallback(): void {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    
+    if (code) {
+      this.exchangeCodeForToken(code);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
+
+  private async exchangeCodeForToken(code: string): Promise<void> {
+    try {
+      const verifier = sessionStorage.getItem('code_verifier');
+      if (!verifier) {
+        throw new Error('No code verifier found');
+      }
+      
+      const tokenUrl = 'https://oauth2.googleapis.com/token';
+      const body = new URLSearchParams({
+        code: code,
+        client_id: environment.googleDrive.clientId,
+        client_secret: environment.googleDrive.clientSecret,
+        redirect_uri: environment.googleDrive.redirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: verifier
+      });
+      
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString()
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error_description || 'Token exchange failed');
+      }
+      
+      const data = await response.json();
+      
+      this.googleDrive.accessToken = data.access_token;
+      this.googleDrive.refreshToken = data.refresh_token;
+      this.googleDrive.expiresAt = Date.now() + (data.expires_in * 1000);
+      
+      sessionStorage.removeItem('code_verifier');
+      this.saveGoogleDriveConfig();
+      
+      this.showSuccessMessage('✅ Google Drive connected successfully!');
+    } catch (error) {
+      console.error('Token exchange error:', error);
+      this.showErrorMessage('Failed to complete Google Drive connection');
+      sessionStorage.removeItem('code_verifier');
+    }
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (!this.googleDrive.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const body = new URLSearchParams({
+      client_id: environment.googleDrive.clientId,
+      client_secret: environment.googleDrive.clientSecret,
+      refresh_token: this.googleDrive.refreshToken,
+      grant_type: 'refresh_token'
+    });
+    
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    
+    if (!response.ok) {
+      throw new Error('Token refresh failed');
+    }
+    
+    const data = await response.json();
+    
+    this.googleDrive.accessToken = data.access_token;
+    this.googleDrive.expiresAt = Date.now() + (data.expires_in * 1000);
+    
+    this.saveGoogleDriveConfig();
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (!this.googleDrive.accessToken) {
+      throw new Error('Not authenticated');
+    }
+    
+    // Refresh if expires in less than 5 minutes
+    if (this.googleDrive.expiresAt && this.googleDrive.expiresAt - Date.now() < 300000) {
+      await this.refreshAccessToken();
+    }
+  }
+
+  // Google Drive Operations
+  async saveToGoogleDrive(): Promise<void> {
+    if (this.stockCards.length === 0) {
+      this.showErrorMessage('No data to save. Add some stock cards first.');
+      return;
+    }
+
+    console.log('Starting save to Google Drive...');
+    this.isSyncing = true;
+    try {
+      await this.ensureValidToken();
+      console.log('Token validated, access token exists:', !!this.googleDrive.accessToken);
+      
+      const data: StockRadarData = {
+        version: '1.0',
+        lastModified: new Date().toISOString(),
+        cards: this.stockCards
+      };
+      
+      console.log('Data to save:', data);
+      
+      let fileId = this.googleDrive.fileId;
+      console.log('Existing file ID:', fileId);
+      
+      if (fileId) {
+        // Update existing file
+        await this.updateDriveFile(fileId, data);
+      } else {
+        // Create new file
+        fileId = await this.createDriveFile(data);
+        this.googleDrive.fileId = fileId;
+        this.saveGoogleDriveConfig();
+      }
+      
+      console.log('Save completed successfully');
+      this.showSuccessMessage('✅ Data synced to Google Drive!');
+      
+    } catch (error: any) {
+      console.error('Google Drive save error:', error);
+      this.handleGoogleDriveError(error);
+    } finally {
+      this.isSyncing = false;
+      this.cdr.detectChanges(); // Force UI update
+      console.log('Save operation finished, isSyncing set to false');
+    }
+  }
+
+  private async createDriveFile(data: StockRadarData): Promise<string> {
+    console.log('Creating new file on Google Drive...');
+    const metadata = {
+      name: 'stockradar.json',
+      mimeType: 'application/json'
+    };
+    
+    const boundary = '-------314159265358979323846';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelim = `\r\n--${boundary}--`;
+    
+    const multipartBody = 
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      JSON.stringify(data) +
+      closeDelim;
+    
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.googleDrive.accessToken}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`
+      },
+      body: multipartBody
+    });
+    
+    console.log('Create file response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Create file error response:', errorText);
+      throw new Error(`Google Drive API error: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    console.log('File created successfully, ID:', result.id);
+    return result.id;
+  }
+
+  private async updateDriveFile(fileId: string, data: StockRadarData): Promise<void> {
+    console.log('Updating existing file on Google Drive, ID:', fileId);
+    const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${this.googleDrive.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    
+    console.log('Update file response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Update file error response:', errorText);
+      throw new Error(`Google Drive API error: ${response.status} - ${errorText}`);
+    }
+    
+    console.log('File updated successfully');
+  }
+
+  async loadFromGoogleDrive(): Promise<void> {
+    console.log('Starting load from Google Drive...');
+    this.isSyncing = true;
+    try {
+      await this.ensureValidToken();
+      
+      let fileId = this.googleDrive.fileId;
+      console.log('File ID:', fileId);
+      
+      if (!fileId) {
+        // Search for existing file
+        console.log('Searching for existing file...');
+        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='stockradar.json' and trashed=false`;
+        const searchResponse = await fetch(searchUrl, {
+          headers: { 'Authorization': `Bearer ${this.googleDrive.accessToken}` }
+        });
+        
+        const searchData = await searchResponse.json();
+        console.log('Search results:', searchData);
+        if (searchData.files && searchData.files.length > 0) {
+          fileId = searchData.files[0].id;
+          this.googleDrive.fileId = fileId;
+          this.saveGoogleDriveConfig();
+        } else {
+          console.log('No file found, setting isSyncing to false');
+          this.isSyncing = false;
+          this.cdr.detectChanges(); // Force UI update
+          this.showErrorMessage('No data found on Google Drive');
+          return;
+        }
+      }
+      
+      // Download file content
+      console.log('Downloading file...');
+      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+      const response = await fetch(downloadUrl, {
+        headers: { 'Authorization': `Bearer ${this.googleDrive.accessToken}` }
+      });
+      
+      console.log('Download response status:', response.status);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          this.googleDrive.fileId = null;
+          this.saveGoogleDriveConfig();
+          throw new Error('File not found on Google Drive');
+        }
+        throw new Error(`Google Drive API error: ${response.status}`);
+      }
+      
+      const data: StockRadarData = await response.json();
+      console.log('Data received:', data);
+      await this.mergeWithLocalData(data);
+      
+      console.log('Load completed successfully');
+      this.showSuccessMessage('✅ Data loaded from Google Drive!');
+      
+    } catch (error: any) {
+      console.error('Google Drive load error:', error);
+      this.handleGoogleDriveError(error);
+    } finally {
+      console.log('Finally block: setting isSyncing to false');
+      this.isSyncing = false;
+      this.cdr.detectChanges(); // Force UI update
+    }
+  }
+
+  private async mergeWithLocalData(cloudData: StockRadarData): Promise<void> {
+    // Auto-merge without confirmation
+    
+    this.stockCards = cloudData.cards;
+    this.saveToLocalStorage();
+    
+    // Keep all cards collapsed
+    if (this.stockCards.length > 0) {
+      this.stockCards.forEach(c => c.expanded = false);
+    }
+  }
+
+  async syncGoogleDrive(): Promise<void> {
+    console.log('Starting sync with Google Drive...');
+    this.isSyncing = true;
+    
+    try {
+      await this.ensureValidToken();
+      console.log('Token validated');
+      
+      // If no local data, try to load from Drive
+      if (this.stockCards.length === 0) {
+        console.log('No local data, loading from Drive...');
+        await this.loadFromGoogleDrive();
+        this.showSuccessMessage('✅ Data restored from Google Drive!');
+        return;
+      }
+      
+      // Otherwise, save local data to Drive
+      const data: StockRadarData = {
+        version: '1.0',
+        lastModified: new Date().toISOString(),
+        cards: this.stockCards
+      };
+      
+      let fileId = this.googleDrive.fileId;
+      
+      if (fileId) {
+        // Update existing file
+        await this.updateDriveFile(fileId, data);
+      } else {
+        // Create new file
+        fileId = await this.createDriveFile(data);
+        this.googleDrive.fileId = fileId;
+        this.saveGoogleDriveConfig();
+      }
+      
+      console.log('Sync completed successfully');
+      this.showSuccessMessage('✅ Synced to Google Drive!');
+      
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      this.handleGoogleDriveError(error);
+    } finally {
+      this.isSyncing = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  // Status Messages
+  private showSuccessMessage(message: string): void {
+    this.statusMessage = message;
+    this.statusType = 'success';
+    setTimeout(() => this.statusMessage = '', 4000);
+  }
+
+  private showErrorMessage(message: string): void {
+    this.statusMessage = message;
+    this.statusType = 'error';
+    setTimeout(() => this.statusMessage = '', 6000);
+  }
+
+  private handleGoogleDriveError(error: any): void {
+    if (error.message?.includes('Not authenticated') || error.status === 401) {
+      this.showErrorMessage('Session expired. Please reconnect Google Drive.');
+      // Clear tokens on auth error
+      this.googleDrive = {
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null,
+        fileId: null
+      };
+      this.saveGoogleDriveConfig();
+    } else if (error.status === 403) {
+      this.showErrorMessage('Permission denied. Please grant access to Google Drive.');
+    } else if (error.status === 404) {
+      this.showErrorMessage('File not found on Google Drive.');
+    } else if (!navigator.onLine) {
+      this.showErrorMessage('No internet connection. Please try again when online.');
+    } else {
+      this.showErrorMessage(error.message || 'An error occurred. Please try again.');
+    }
+  }
+
+  // Google Drive Config Persistence
+  private saveGoogleDriveConfig(): void {
+    localStorage.setItem('googleDriveConfig', JSON.stringify(this.googleDrive));
+  }
+
+  private loadGoogleDriveConfig(): void {
+    const stored = localStorage.getItem('googleDriveConfig');
+    if (stored) {
+      try {
+        this.googleDrive = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse Google Drive config:', e);
+      }
+    }
+  }
 }
+
