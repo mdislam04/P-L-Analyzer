@@ -386,7 +386,7 @@ interface Contract {
       </div>
       <!-- V2 Dashboard Tab -->
       <div *ngIf="activeTab === 'v2'" class="tab-content">
-        <app-dashboard-v2 [contracts]="contracts"></app-dashboard-v2>
+        <app-dashboard-v2 [contracts]="contracts" (contractsChange)="onContractsChange($event)"></app-dashboard-v2>
       </div>
 
       <!-- Change Track Tab -->
@@ -1004,6 +1004,10 @@ export class App {
     if (confirm('Disconnect Google Drive? You can reconnect anytime.')) {
       this.driveService.disconnect();
     }
+  }
+
+  onContractsChange(newContracts: Contract[]) {
+    this.contracts = newContracts;
   }
 
   getCurrentMonth(): string {

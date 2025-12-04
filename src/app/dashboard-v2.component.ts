@@ -1,8 +1,10 @@
-import { Component, Input, ViewChild, ElementRef, AfterViewInit, OnChanges, SimpleChanges, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ViewChild, ElementRef, AfterViewInit, OnChanges, SimpleChanges, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import Chart from 'chart.js/auto';
 import html2canvas from 'html2canvas';
 import { toPng } from 'html-to-image';
+import { GoogleDriveService } from './google-drive.service';
 
 interface Contract {
   monthYear: string;
@@ -11,10 +13,23 @@ interface Contract {
   pnl: number;
 }
 
+interface MonthOption {
+  value: string; // YYYY-MM
+  label: string; // "December 2024"
+  fileId: string;
+}
+
+interface V2DashboardData {
+  version: string;
+  month: string; // YYYY-MM
+  lastModified: string;
+  contracts: Contract[];
+}
+
 @Component({
   selector: 'app-dashboard-v2',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="v2-container" *ngIf="contracts" id="v2-dashboard-content">
       <div class="v2-header">
@@ -24,7 +39,29 @@ interface Contract {
           P & L {{ netPnL >= 0 ? '+' : '-' }}₹{{ formatNumber(absNet) }}
         </div>
         <div class="v2-win-rate">WIN RATE: {{ winRate.toFixed(1) }}%</div>
-        <button class="export-btn" (click)="exportV2AsImage()">📸 Export V2 as Image</button>
+        
+        <!-- Drive Controls -->
+        <div class="drive-controls" *ngIf="driveService.isConnected()">
+          <select [(ngModel)]="selectedMonth" (change)="onMonthSelected()" class="month-dropdown">
+            <option value="">Select month to load...</option>
+            <option *ngFor="let month of availableMonths" [value]="month.value">
+              {{ month.label }}
+            </option>
+          </select>
+          <button 
+            class="sync-btn" 
+            (click)="syncV2Dashboard()" 
+            [disabled]="isSyncing || !contracts.length">
+            {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+          </button>
+        </div>
+        
+        <button class="export-btn" (click)="exportV2AsImage()">📸 Export as Image</button>
+      </div>
+      
+      <!-- Status Messages -->
+      <div *ngIf="statusMessage" class="status-message" [class.success]="statusType === 'success'" [class.error]="statusType === 'error'">
+        {{ statusMessage }}
       </div>
 
       <div class="v2-grid">
@@ -138,10 +175,13 @@ interface Contract {
     }
     @keyframes fadeIn { from { opacity:0; transform: translateY(12px);} to { opacity:1; transform: translateY(0);} }
     .v2-header {
-      display: grid;
-      grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+      display: flex;
+      flex-wrap: wrap;
       gap: 16px;
       align-items: center;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
     }
     .v2-title { font-size: 0.85em; letter-spacing: 2px; font-weight: 600; color: #ffc107; }
     .v2-period { font-size: 0.8em; color: #bbb; }
@@ -149,7 +189,7 @@ interface Contract {
     .v2-net.profit { color: #4caf50; }
     .v2-net.loss { color: #f44336; }
     .v2-win-rate { font-size: 0.8em; background: rgba(255,193,7,0.15); padding: 6px 10px; border-radius: 12px; letter-spacing: 1px; }
-    .export-btn { justify-self: end; padding: 8px 14px; background: #2196f3; color: #fff; font-size: 12px; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
+    .export-btn { padding: 8px 14px; background: #2196f3; color: #fff; font-size: 12px; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s; white-space: nowrap; margin-left: auto; }
     .export-btn:hover { background: #1976d2; transform: translateY(-2px); }
     .v2-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 16px; }
     .metric-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
@@ -176,10 +216,56 @@ interface Contract {
     .compact-row .value { font-size: 0.9em; font-weight: 600; }
     .compact-row .value.green { color: #4caf50; }
     .compact-row .value.red { color: #f44336; }
+    
+    .drive-controls { display: flex; gap: 10px; align-items: center; }
+    .month-dropdown {
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.85em;
+      cursor: pointer;
+      min-width: 200px;
+    }
+    .month-dropdown option { background: #1a2332; color: #fff; }
+    .sync-btn {
+      padding: 8px 16px;
+      background: #4285f4;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.85em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    .sync-btn:hover:not(:disabled) { background: #3367d6; }
+    .sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    
+    .status-message {
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.85em;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .status-message.success {
+      background: rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+      color: #4caf50;
+    }
+    .status-message.error {
+      background: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.4);
+      color: #f44336;
+    }
   `]
 })
-export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy {
+export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy, OnInit {
   @Input() contracts: Contract[] = [];
+  @Output() contractsChange = new EventEmitter<Contract[]>();
   @ViewChild('chartRegularNifty') chartRegularNiftyRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartNiftySplit') chartNiftySplitRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('chartOptionsProfitLoss') chartOptionsProfitLossRef!: ElementRef<HTMLCanvasElement>;
@@ -189,6 +275,22 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
   private chartNiftySplit?: any;
   private chartOptionsProfitLoss?: any;
   private chartProfitLoss?: any;
+
+  // Google Drive state
+  availableMonths: MonthOption[] = [];
+  selectedMonth: string = '';
+  isSyncing: boolean = false;
+  statusMessage: string = '';
+  statusType: 'success' | 'error' = 'success';
+
+  constructor(
+    public driveService: GoogleDriveService,
+    private cdr: ChangeDetectorRef
+  ) {}
+
+  ngOnInit(): void {
+    this.loadAvailableMonths();
+  }
 
   get latestMonth(): string | null {
     if (!this.contracts.length) return null;
@@ -321,7 +423,11 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
 
   ngAfterViewInit(): void { this.renderCharts(); }
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['contracts']) { this.renderCharts(); }
+    if (changes['contracts']) { 
+      this.renderCharts();
+      // Reload available months when navigating to V2 tab
+      this.loadAvailableMonths();
+    }
   }
   ngOnDestroy(): void { this.destroyCharts(); }
 
@@ -486,5 +592,172 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
         console.error('Error exporting V2 dashboard:', fallbackError);
       }
     }
+  }
+
+  // ============= GOOGLE DRIVE INTEGRATION =============
+
+  async loadAvailableMonths() {
+    if (!this.driveService.isConnected()) {
+      this.availableMonths = [];
+      return;
+    }
+
+    try {
+      // Search for all v2-dashboard-*.json files
+      const files = await this.searchAllV2DashboardFiles();
+      this.availableMonths = files
+        .map(file => this.parseMonthFromFileName(file.name, file.id))
+        .filter(m => m !== null) as MonthOption[];
+      
+      // Sort by date descending (newest first)
+      this.availableMonths.sort((a, b) => b.value.localeCompare(a.value));
+      
+      // Trigger change detection
+      this.cdr.detectChanges();
+    } catch (error) {
+      console.error('Failed to load available months:', error);
+    }
+  }
+
+  private async searchAllV2DashboardFiles(): Promise<{id: string, name: string}[]> {
+    const token = this.driveService.getAccessToken();
+    if (!token) return [];
+
+    const query = encodeURIComponent("name contains 'v2-dashboard-' and name contains '.json' and trashed=false");
+    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`;
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to search files');
+    }
+
+    const data = await response.json();
+    return data.files || [];
+  }
+
+  private parseMonthFromFileName(fileName: string, fileId: string): MonthOption | null {
+    // Extract YYYY-MM from v2-dashboard-YYYY-MM.json
+    const match = fileName.match(/v2-dashboard-(\d{4})-(\d{2})\.json/);
+    if (!match) return null;
+
+    const year = match[1];
+    const month = match[2];
+    const value = `${year}-${month}`;
+    
+    // Convert to label: "December 2024"
+    const date = new Date(`${year}-${month}-01`);
+    const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    return { value, label, fileId };
+  }
+
+  async onMonthSelected() {
+    if (!this.selectedMonth) return;
+
+    const monthOption = this.availableMonths.find(m => m.value === this.selectedMonth);
+    if (!monthOption) return;
+
+    this.isSyncing = true;
+    this.cdr.detectChanges();
+
+    try {
+      // Download file
+      const data: V2DashboardData = await this.driveService.downloadFile(monthOption.fileId);
+      
+      // Update contracts (this will emit to parent via contractsChange)
+      this.contractsChange.emit(data.contracts);
+      
+      this.showSuccessMessage(`✅ Loaded ${monthOption.label} data from Drive`);
+    } catch (error) {
+      console.error('Failed to load month data:', error);
+      this.showErrorMessage('❌ Failed to load data: ' + (error as Error).message);
+    } finally {
+      this.isSyncing = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async syncV2Dashboard() {
+    if (!this.driveService.isConnected()) {
+      this.showErrorMessage('Please connect Google Drive first');
+      return;
+    }
+
+    if (!this.contracts.length) {
+      this.showErrorMessage('No data to sync');
+      return;
+    }
+
+    // Check if all contracts are from the same month
+    const months = new Set(this.contracts.map(c => c.monthYear).filter(Boolean));
+    if (months.size > 1) {
+      this.showErrorMessage('❌ Error: Contracts have mixed months. Please filter to a single month before syncing.');
+      return;
+    }
+
+    if (months.size === 0) {
+      this.showErrorMessage('❌ Error: Contracts missing month information');
+      return;
+    }
+
+    const month = Array.from(months)[0];
+    this.isSyncing = true;
+    this.cdr.detectChanges();
+
+    try {
+      await this.saveV2Dashboard(month);
+      this.showSuccessMessage(`✅ Synced ${this.formatMonth(month)} data to Drive`);
+      
+      // Refresh available months
+      await this.loadAvailableMonths();
+    } catch (error) {
+      console.error('Sync failed:', error);
+      this.showErrorMessage('❌ Sync failed: ' + (error as Error).message);
+    } finally {
+      this.isSyncing = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private async saveV2Dashboard(month: string) {
+    const fileName = `v2-dashboard-${month}.json`;
+    const data: V2DashboardData = {
+      version: '1.0',
+      month: month,
+      lastModified: new Date().toISOString(),
+      contracts: this.contracts
+    };
+
+    // Check if file already exists
+    const existingFile = await this.driveService.searchFile(fileName);
+
+    if (existingFile) {
+      // Update existing file
+      await this.driveService.updateFile(existingFile.id, data);
+    } else {
+      // Create new file
+      await this.driveService.createFile(fileName, data);
+    }
+  }
+
+  private formatMonth(monthYear: string): string {
+    if (!monthYear) return '';
+    const date = new Date(monthYear + '-01');
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  private showSuccessMessage(message: string): void {
+    this.statusMessage = message;
+    this.statusType = 'success';
+    setTimeout(() => this.statusMessage = '', 4000);
+  }
+
+  private showErrorMessage(message: string): void {
+    this.statusMessage = message;
+    this.statusType = 'error';
+    setTimeout(() => this.statusMessage = '', 6000);
   }
 }
