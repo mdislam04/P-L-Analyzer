@@ -5,7 +5,6 @@ export const environment = {
   production: false,
   googleDrive: {
     clientId: 'YOUR_CLIENT_ID.apps.googleusercontent.com',
-    clientSecret: 'GOCSPX-YOUR_CLIENT_SECRET',
     redirectUri: 'http://localhost:4200',
     scope: 'https://www.googleapis.com/auth/drive.file'
   }

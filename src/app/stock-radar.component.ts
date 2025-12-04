@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../environments/environment';
 
+// Google Identity Services type declaration
+declare const google: any;
+
 interface StockLevel {
   id: string;
   label: string; // Auto-generated: "Support1", "Support2", etc.
@@ -933,44 +936,29 @@ export class StockRadarComponent implements OnInit {
     return !!this.googleDrive.accessToken;
   }
 
-  // PKCE Helper Functions
-  private base64UrlEncode(array: Uint8Array): string {
-    const base64 = btoa(String.fromCharCode(...Array.from(array)));
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-  }
-
-  private generateCodeVerifier(): string {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return this.base64UrlEncode(array);
-  }
-
-  private async generateCodeChallenge(verifier: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    return this.base64UrlEncode(new Uint8Array(hash));
-  }
-
-  // OAuth Flow
+  // Google Identity Services (New Approach)
   async initiateGoogleAuth(): Promise<void> {
     try {
-      const verifier = this.generateCodeVerifier();
-      sessionStorage.setItem('code_verifier', verifier);
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: environment.googleDrive.clientId,
+        scope: environment.googleDrive.scope,
+        callback: (response: any) => {
+          if (response.error) {
+            console.error('Auth error:', response);
+            this.showErrorMessage('Failed to connect Google Drive');
+            return;
+          }
+          
+          this.googleDrive.accessToken = response.access_token;
+          this.googleDrive.expiresAt = Date.now() + (response.expires_in * 1000);
+          // Note: Google Identity Services doesn't provide refresh tokens in browser
+          this.saveGoogleDriveConfig();
+          this.showSuccessMessage('✅ Google Drive connected successfully!');
+          this.cdr.detectChanges();
+        },
+      });
       
-      const challenge = await this.generateCodeChallenge(verifier);
-      
-      const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-      authUrl.searchParams.set('client_id', environment.googleDrive.clientId);
-      authUrl.searchParams.set('redirect_uri', environment.googleDrive.redirectUri);
-      authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('scope', environment.googleDrive.scope);
-      authUrl.searchParams.set('code_challenge', challenge);
-      authUrl.searchParams.set('code_challenge_method', 'S256');
-      authUrl.searchParams.set('access_type', 'offline');
-      authUrl.searchParams.set('prompt', 'consent');
-      
-      window.location.href = authUrl.toString();
+      client.requestAccessToken();
     } catch (error) {
       console.error('Auth initiation error:', error);
       this.showErrorMessage('Failed to initiate Google Drive connection');
@@ -978,90 +966,7 @@ export class StockRadarComponent implements OnInit {
   }
 
   handleOAuthCallback(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    
-    if (code) {
-      this.exchangeCodeForToken(code);
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }
-
-  private async exchangeCodeForToken(code: string): Promise<void> {
-    try {
-      const verifier = sessionStorage.getItem('code_verifier');
-      if (!verifier) {
-        throw new Error('No code verifier found');
-      }
-      
-      const tokenUrl = 'https://oauth2.googleapis.com/token';
-      const body = new URLSearchParams({
-        code: code,
-        client_id: environment.googleDrive.clientId,
-        client_secret: environment.googleDrive.clientSecret,
-        redirect_uri: environment.googleDrive.redirectUri,
-        grant_type: 'authorization_code',
-        code_verifier: verifier
-      });
-      
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString()
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error_description || 'Token exchange failed');
-      }
-      
-      const data = await response.json();
-      
-      this.googleDrive.accessToken = data.access_token;
-      this.googleDrive.refreshToken = data.refresh_token;
-      this.googleDrive.expiresAt = Date.now() + (data.expires_in * 1000);
-      
-      sessionStorage.removeItem('code_verifier');
-      this.saveGoogleDriveConfig();
-      
-      this.showSuccessMessage('✅ Google Drive connected successfully!');
-    } catch (error) {
-      console.error('Token exchange error:', error);
-      this.showErrorMessage('Failed to complete Google Drive connection');
-      sessionStorage.removeItem('code_verifier');
-    }
-  }
-
-  private async refreshAccessToken(): Promise<void> {
-    if (!this.googleDrive.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-    
-    const tokenUrl = 'https://oauth2.googleapis.com/token';
-    const body = new URLSearchParams({
-      client_id: environment.googleDrive.clientId,
-      client_secret: environment.googleDrive.clientSecret,
-      refresh_token: this.googleDrive.refreshToken,
-      grant_type: 'refresh_token'
-    });
-    
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString()
-    });
-    
-    if (!response.ok) {
-      throw new Error('Token refresh failed');
-    }
-    
-    const data = await response.json();
-    
-    this.googleDrive.accessToken = data.access_token;
-    this.googleDrive.expiresAt = Date.now() + (data.expires_in * 1000);
-    
-    this.saveGoogleDriveConfig();
+    // Not needed with Google Identity Services
   }
 
   private async ensureValidToken(): Promise<void> {
@@ -1069,9 +974,14 @@ export class StockRadarComponent implements OnInit {
       throw new Error('Not authenticated');
     }
     
-    // Refresh if expires in less than 5 minutes
+    // Check if token is expired or will expire soon (within 5 minutes)
     if (this.googleDrive.expiresAt && this.googleDrive.expiresAt - Date.now() < 300000) {
-      await this.refreshAccessToken();
+      // Re-prompt user for new token (Google Identity Services doesn't support refresh tokens in browser)
+      this.showErrorMessage('Session expired. Please reconnect.');
+      this.googleDrive.accessToken = null;
+      this.googleDrive.expiresAt = null;
+      this.saveGoogleDriveConfig();
+      throw new Error('Token expired');
     }
   }
 
