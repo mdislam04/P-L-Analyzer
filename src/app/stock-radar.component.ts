@@ -537,13 +537,13 @@ interface StockRadarData {
     }
 
     .mini-level-label {
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 600;
       color: #2196f3;
     }
 
     .mini-level-value {
-      font-size: 13px;
+      font-size: 15px;
       color: #fff;
       text-align: left;
     }
@@ -582,9 +582,11 @@ interface StockRadarData {
     }
 
     .mini-note-text {
-      font-size: 13px;
+      font-size: 15px;
       color: #fff;
-      line-height: 1.5;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
     /* Empty State in Mini Cards */
