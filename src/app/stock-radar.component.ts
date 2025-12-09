@@ -1,6 +1,7 @@
 import { Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MarkdownModule } from 'ngx-markdown';
 import { GoogleDriveService } from './google-drive.service';
 
 interface StockLevel {
@@ -14,6 +15,7 @@ interface StockNote {
   id: string;
   text: string;
   timestamp: Date;
+  format?: 'plain' | 'markdown'; // Default: 'markdown' for backward compatibility
 }
 
 interface StockCard {
@@ -37,7 +39,7 @@ interface StockRadarData {
 @Component({
   selector: 'app-stock-radar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MarkdownModule],
   template: `
     <div class="sr-container">
       <!-- Add Stock Card Bar -->
@@ -187,19 +189,21 @@ interface StockRadarData {
                 <div class="mini-card-body">
                   <!-- Notes Input Row -->
                   <div class="mini-input-row">
-                    <input 
-                      type="text" 
+                    <textarea
                       [(ngModel)]="card.newNoteText" 
-                      placeholder="Enter development note"
+                      placeholder="Enter note (Markdown: **bold**, *italic*, - list)"
                       class="mini-note-input"
-                    />
+                      rows="3"
+                    ></textarea>
                     <button (click)="addNote(card)" class="btn-add-mini">+</button>
                   </div>
 
                   <!-- Notes List -->
                   <div *ngIf="card.notes.length > 0" class="mini-notes-list">
                     <div *ngFor="let note of card.notes; let i = index" class="mini-note-item">
-                      <span class="mini-note-text">{{ note.text }}</span>
+                      <div class="mini-note-text">
+                        <markdown [data]="note.text"></markdown>
+                      </div>
                       <button (click)="deleteNote(card, i)" class="btn-delete-mini">−</button>
                     </div>
                   </div>
@@ -492,10 +496,14 @@ interface StockRadarData {
       border-radius: 6px;
       color: #fff;
       font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 36px;
     }
 
     .mini-level-input::placeholder, .mini-note-input::placeholder {
       color: rgba(255, 255, 255, 0.4);
+      font-size: 12px;
     }
 
     .btn-add-mini {
@@ -577,16 +585,118 @@ interface StockRadarData {
       gap: 10px;
       align-items: center;
       padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.85);
       border-radius: 6px;
     }
 
     .mini-note-text {
       font-size: 15px;
-      color: #fff;
+      color: #1a1a1a;
       line-height: 1.6;
-      white-space: pre-wrap;
       word-wrap: break-word;
+    }
+
+    /* Markdown Styling in Notes */
+    .mini-note-text markdown {
+      display: block;
+    }
+
+    .mini-note-text markdown p {
+      margin: 0 0 8px 0;
+      color: #1a1a1a;
+    }
+
+    .mini-note-text markdown p:last-child {
+      margin-bottom: 0;
+    }
+
+    .mini-note-text markdown strong {
+      font-weight: 700;
+      color: #d68000;
+    }
+
+    .mini-note-text markdown em {
+      font-style: italic;
+      color: #1565c0;
+    }
+
+    .mini-note-text markdown code {
+      background: rgba(0, 0, 0, 0.08);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #2e7d32;
+    }
+
+    .mini-note-text markdown pre {
+      background: rgba(0, 0, 0, 0.05);
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .mini-note-text markdown pre code {
+      background: none;
+      padding: 0;
+      color: #388e3c;
+    }
+
+    .mini-note-text markdown ul,
+    .mini-note-text markdown ol {
+      margin: 8px 0;
+      padding-left: 20px;
+      color: #1a1a1a;
+    }
+
+    .mini-note-text markdown li {
+      margin: 4px 0;
+    }
+
+    .mini-note-text markdown h1,
+    .mini-note-text markdown h2,
+    .mini-note-text markdown h3 {
+      color: #d68000;
+      margin: 12px 0 8px 0;
+    }
+
+    .mini-note-text markdown h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .mini-note-text markdown h2 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .mini-note-text markdown h3 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .mini-note-text markdown a {
+      color: #1565c0;
+      text-decoration: none;
+    }
+
+    .mini-note-text markdown a:hover {
+      text-decoration: underline;
+    }
+
+    .mini-note-text markdown blockquote {
+      border-left: 3px solid #d68000;
+      padding-left: 12px;
+      margin: 8px 0;
+      color: rgba(0, 0, 0, 0.7);
+      font-style: italic;
+    }
+
+    .mini-note-text markdown hr {
+      border: none;
+      border-top: 1px solid rgba(0, 0, 0, 0.2);
+      margin: 12px 0;
     }
 
     /* Empty State in Mini Cards */
