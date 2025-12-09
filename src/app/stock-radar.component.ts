@@ -1,4 +1,4 @@
-import { Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, HostListener, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MarkdownModule } from 'ngx-markdown';
@@ -28,6 +28,7 @@ interface StockCard {
   newSupportValue?: number | null;
   newResistanceValue?: number | null;
   newNoteText?: string;
+  notePreviewMode?: boolean; // For edit/preview toggle
 }
 
 interface StockRadarData {
@@ -187,15 +188,57 @@ interface StockRadarData {
                   <h4 class="mini-card-title">📝 Development Notes</h4>
                 </div>
                 <div class="mini-card-body">
-                  <!-- Notes Input Row -->
-                  <div class="mini-input-row">
-                    <textarea
-                      [(ngModel)]="card.newNoteText" 
-                      placeholder="Enter note (Markdown: **bold**, *italic*, - list)"
-                      class="mini-note-input"
-                      rows="3"
-                    ></textarea>
-                    <button (click)="addNote(card)" class="btn-add-mini">+</button>
+                  <!-- Edit/Preview Toggle -->
+                  <div class="editor-toggle">
+                    <button 
+                      (click)="card.notePreviewMode = false"
+                      [class.active]="!card.notePreviewMode"
+                      class="toggle-btn"
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button 
+                      (click)="card.notePreviewMode = true"
+                      [class.active]="card.notePreviewMode"
+                      class="toggle-btn"
+                    >
+                      👁️ Preview
+                    </button>
+                  </div>
+
+                  <!-- Edit Mode -->
+                  <div *ngIf="!card.notePreviewMode" class="editor-container">
+                    <!-- Formatting Toolbar -->
+                    <div class="formatting-toolbar">
+                      <button (click)="insertMarkdown(card, 'bold')" class="fmt-btn" title="Bold (Ctrl+B)">B</button>
+                      <button (click)="insertMarkdown(card, 'italic')" class="fmt-btn" title="Italic (Ctrl+I)">I</button>
+                      <button (click)="insertMarkdown(card, 'code')" class="fmt-btn" title="Code">&lt;/&gt;</button>
+                      <button (click)="insertMarkdown(card, 'list')" class="fmt-btn" title="List">•</button>
+                      <button (click)="insertMarkdown(card, 'link')" class="fmt-btn" title="Link (Ctrl+K)">🔗</button>
+                      <button (click)="insertMarkdown(card, 'h1')" class="fmt-btn" title="Heading 1">H1</button>
+                      <button (click)="insertMarkdown(card, 'h2')" class="fmt-btn" title="Heading 2">H2</button>
+                    </div>
+
+                    <!-- Notes Input Row -->
+                    <div class="mini-input-row">
+                      <textarea
+                        #noteTextarea
+                        [(ngModel)]="card.newNoteText" 
+                        (keydown)="handleKeyboard($event, card)"
+                        placeholder="Enter note (Markdown: **bold**, *italic*, - list)"
+                        class="mini-note-input"
+                        rows="4"
+                      ></textarea>
+                      <button (click)="addNote(card)" class="btn-add-mini">+</button>
+                    </div>
+                  </div>
+
+                  <!-- Preview Mode -->
+                  <div *ngIf="card.notePreviewMode" class="preview-container">
+                    <div class="preview-content">
+                      <markdown [data]="card.newNoteText || '*No content to preview*'"></markdown>
+                    </div>
+                    <button (click)="addNote(card)" class="btn-add-preview">Add Note</button>
                   </div>
 
                   <!-- Notes List -->
@@ -486,6 +529,114 @@ interface StockRadarData {
       display: flex;
       gap: 10px;
       margin-bottom: 14px;
+    }
+
+    /* Editor Toggle Buttons */
+    .editor-toggle {
+      display: flex;
+      gap: 0;
+      margin-bottom: 12px;
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .toggle-btn.active {
+      background: #ffc107;
+      color: #1a1a1a;
+    }
+
+    /* Formatting Toolbar */
+    .formatting-toolbar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      flex-wrap: wrap;
+    }
+
+    .fmt-btn {
+      padding: 6px 12px;
+      background: rgba(255, 193, 7, 0.15);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 4px;
+      color: #ffc107;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 32px;
+    }
+
+    .fmt-btn:hover {
+      background: rgba(255, 193, 7, 0.25);
+      border-color: #ffc107;
+      transform: translateY(-1px);
+    }
+
+    .fmt-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Editor and Preview Containers */
+    .editor-container,
+    .preview-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .preview-container {
+      min-height: 120px;
+    }
+
+    .preview-content {
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 6px;
+      min-height: 100px;
+      color: #1a1a1a;
+    }
+
+    .preview-content markdown p:first-child {
+      margin-top: 0;
+    }
+
+    .btn-add-preview {
+      align-self: flex-end;
+      padding: 10px 24px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-add-preview:hover {
+      background: #45a049;
     }
 
     .mini-level-input, .mini-note-input {
@@ -838,6 +989,7 @@ export class StockRadarComponent implements OnInit {
 
   constructor(
     private cdr: ChangeDetectorRef,
+    private zone: NgZone,
     public driveService: GoogleDriveService
   ) {}
 
@@ -982,6 +1134,96 @@ export class StockRadarComponent implements OnInit {
   deleteNote(card: StockCard, index: number): void {
     card.notes.splice(index, 1);
     this.saveToLocalStorage();
+  }
+
+  // Markdown formatting helpers
+  insertMarkdown(card: StockCard, type: string): void {
+    const textarea = document.querySelector(`textarea.mini-note-input`) as HTMLTextAreaElement;
+    if (!textarea) {
+      card.newNoteText = card.newNoteText || '';
+      return;
+    }
+
+    // Save scroll position before modification
+    const scrollTop = textarea.scrollTop;
+    const scrollLeft = textarea.scrollLeft;
+
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const selectedText = card.newNoteText?.substring(start, end) || '';
+    const beforeText = card.newNoteText?.substring(0, start) || '';
+    const afterText = card.newNoteText?.substring(end) || '';
+
+    let insertText = '';
+    let cursorOffset = 0;
+
+    switch (type) {
+      case 'bold':
+        insertText = `**${selectedText || 'bold text'}**`;
+        cursorOffset = selectedText ? insertText.length : 2;
+        break;
+      case 'italic':
+        insertText = `*${selectedText || 'italic text'}*`;
+        cursorOffset = selectedText ? insertText.length : 1;
+        break;
+      case 'code':
+        insertText = `\`${selectedText || 'code'}\``;
+        cursorOffset = selectedText ? insertText.length : 1;
+        break;
+      case 'list':
+        insertText = selectedText ? `- ${selectedText}` : '- List item';
+        cursorOffset = insertText.length;
+        break;
+      case 'link':
+        insertText = `[${selectedText || 'link text'}](url)`;
+        cursorOffset = selectedText ? insertText.length - 4 : 1;
+        break;
+      case 'h1':
+        insertText = `# ${selectedText || 'Heading 1'}`;
+        cursorOffset = insertText.length;
+        break;
+      case 'h2':
+        insertText = `## ${selectedText || 'Heading 2'}`;
+        cursorOffset = insertText.length;
+        break;
+    }
+
+    card.newNoteText = beforeText + insertText + afterText;
+
+    // Restore scroll position and cursor without causing scroll jump
+    this.zone.run(() => {
+      setTimeout(() => {
+        if (textarea) {
+          // Restore scroll position first
+          textarea.scrollTop = scrollTop;
+          textarea.scrollLeft = scrollLeft;
+          
+          // Focus and set cursor position
+          textarea.focus();
+          const newPos = start + cursorOffset;
+          textarea.setSelectionRange(newPos, newPos);
+        }
+      }, 0);
+    });
+  }
+
+  handleKeyboard(event: KeyboardEvent, card: StockCard): void {
+    if (event.ctrlKey || event.metaKey) {
+      switch (event.key.toLowerCase()) {
+        case 'b':
+          event.preventDefault();
+          this.insertMarkdown(card, 'bold');
+          break;
+        case 'i':
+          event.preventDefault();
+          this.insertMarkdown(card, 'italic');
+          break;
+        case 'k':
+          event.preventDefault();
+          this.insertMarkdown(card, 'link');
+          break;
+      }
+    }
   }
 
   // Formatting
