@@ -13,6 +13,7 @@ interface ChangeCard {
   expanded?: boolean;
   selectedFromDate?: string; // Date picker for change calculation
   calculatedChange?: number; // Calculated change from selected date to latest
+  daysCount?: number; // Number of days for which change is calculated
 }
 
 interface ChangeTrackData {
@@ -68,6 +69,7 @@ interface ChangeTrackData {
               <span class="calculated-change" [class.profit]="(card.calculatedChange || 0) >= 0" [class.loss]="(card.calculatedChange || 0) < 0">
                 {{ (card.calculatedChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(card.calculatedChange || 0) }}
               </span>
+              <span class="days-badge">{{ card.daysCount || 0 }}d</span>
             </div>
             <div class="header-actions">
               <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
@@ -107,7 +109,7 @@ interface ChangeTrackData {
     .clear-btn { background: rgba(255,255,255,0.15); }
     .clear-btn:hover { background: rgba(255,255,255,0.25); }
     .warn { color:#ff6e6e; font-size:0.75em; }
-    .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(400px,1fr)); gap:18px; align-items:start; }
+    .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(450px,1fr)); gap:18px; align-items:start; }
     .ct-card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; display:flex; flex-direction: column; gap:12px; position:relative; }
     .card-header { display:flex; align-items:center; gap:10px; justify-content: space-between; }
     .header-actions { display:flex; gap:6px; align-items:center; flex-shrink: 0; }
@@ -118,6 +120,7 @@ interface ChangeTrackData {
     .calculated-change { font-size:0.8em; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(0,0,0,0.3); white-space: nowrap; min-width: 60px; text-align: center; }
     .calculated-change.profit { color:#4caf50; }
     .calculated-change.loss { color:#f44336; }
+    .days-badge { font-size:0.75em; font-weight:700; padding:2px 6px; border-radius:50%; color:#ffc107; border:1.5px solid rgba(255, 255, 255, 0.7); white-space: nowrap; min-width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
     .entry-add-row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:center; z-index:1; margin-top:4px; }
     .warn.small { font-size:0.65em; margin-top:-4px; }
     .entry-add-row input { padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.8em; }
@@ -344,6 +347,7 @@ export class ChangeTrackComponent implements OnInit {
   calculateChange(card: ChangeCard): void {
     if (!card.entries || card.entries.length === 0) {
       card.calculatedChange = 0;
+      card.daysCount = 0;
       return;
     }
 
@@ -358,6 +362,18 @@ export class ChangeTrackComponent implements OnInit {
     // Sum up all changes
     const totalChange = relevantEntries.reduce((sum, entry) => sum + entry.value, 0);
     card.calculatedChange = totalChange;
+
+    // Calculate number of days
+    card.daysCount = this.calculateDaysCount(fromDate, toDate);
+  }
+
+  // Calculate number of days between two dates
+  calculateDaysCount(fromDate: string, toDate: string): number {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    const diffTime = Math.abs(to.getTime() - from.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   }
 
   // Initialize card with default from date and calculate change
