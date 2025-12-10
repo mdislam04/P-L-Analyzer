@@ -4,7 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { GoogleDriveService } from './google-drive.service';
 
 interface ChangeEntry { date: string; value: number; }
-interface ChangeCard { name: string; entries: ChangeEntry[]; newEntryDate: string; newEntryValue: number | null; duplicateDate?: boolean; expanded?: boolean; }
+interface ChangeCard { 
+  name: string; 
+  entries: ChangeEntry[]; 
+  newEntryDate: string; 
+  newEntryValue: number | null; 
+  duplicateDate?: boolean; 
+  expanded?: boolean;
+  selectedFromDate?: string; // Date picker for change calculation
+  calculatedChange?: number; // Calculated change from selected date to latest
+}
 
 interface ChangeTrackData {
   version: string;
@@ -48,6 +57,18 @@ interface ChangeTrackData {
         <div *ngFor="let card of cards; trackBy: trackByName" class="ct-card" [class.expanded]="card.expanded">
           <div class="card-header">
             <div class="card-title">{{ card.name }}</div>
+            <div class="change-calculator">
+              <input 
+                type="date" 
+                [(ngModel)]="card.selectedFromDate" 
+                (ngModelChange)="calculateChange(card)"
+                [max]="getLatestDate(card)"
+                class="date-picker-small"
+              />
+              <span class="calculated-change" [class.profit]="(card.calculatedChange || 0) >= 0" [class.loss]="(card.calculatedChange || 0) < 0">
+                {{ (card.calculatedChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(card.calculatedChange || 0) }}
+              </span>
+            </div>
             <div class="header-actions">
               <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
               <button class="icon-btn fullscreen" (click)="toggleExpand(card)" [attr.aria-label]="card.expanded ? 'Exit full screen' : 'Full screen'">⛶</button>
@@ -86,11 +107,17 @@ interface ChangeTrackData {
     .clear-btn { background: rgba(255,255,255,0.15); }
     .clear-btn:hover { background: rgba(255,255,255,0.25); }
     .warn { color:#ff6e6e; font-size:0.75em; }
-    .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap:18px; align-items:start; }
+    .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(400px,1fr)); gap:18px; align-items:start; }
     .ct-card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; display:flex; flex-direction: column; gap:12px; position:relative; }
-    .card-header { display:flex; justify-content: space-between; align-items:center; gap:8px; }
-    .header-actions { display:flex; gap:6px; align-items:center; }
-    .card-title { font-size:0.9em; font-weight:600; letter-spacing:1px; color:#ffc107; }
+    .card-header { display:flex; align-items:center; gap:10px; justify-content: space-between; }
+    .header-actions { display:flex; gap:6px; align-items:center; flex-shrink: 0; }
+    .card-title { font-size:0.9em; font-weight:600; letter-spacing:1px; color:#ffc107; white-space: nowrap; flex-shrink: 0; }
+    .change-calculator { display:flex; align-items:center; gap:6px; flex-wrap: nowrap; flex: 1; justify-content: flex-end; margin: 0 10px; }
+    .date-picker-small { padding:4px 8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,193,7,0.3); border-radius:6px; color:#fff; font-size:0.7em; cursor:pointer; min-width: 100px; }
+    .date-picker-small::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; width: 14px; height: 14px; }
+    .calculated-change { font-size:0.8em; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(0,0,0,0.3); white-space: nowrap; min-width: 60px; text-align: center; }
+    .calculated-change.profit { color:#4caf50; }
+    .calculated-change.loss { color:#f44336; }
     .entry-add-row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:center; z-index:1; margin-top:4px; }
     .warn.small { font-size:0.65em; margin-top:-4px; }
     .entry-add-row input { padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.8em; }
@@ -188,6 +215,8 @@ export class ChangeTrackComponent implements OnInit {
   ngOnInit(): void {
     this.loadFromStorage();
     this.loadDriveFileId();
+    // Initialize calculations for all cards
+    this.cards.forEach(card => this.initializeCardCalculation(card));
   }
 
   trackByName(index: number, card: ChangeCard) { return card.name; }
@@ -198,9 +227,11 @@ export class ChangeTrackComponent implements OnInit {
     const exists = this.cards.some(c => c.name.toLowerCase() === raw.toLowerCase());
     if (exists) { this.duplicateWarning = true; setTimeout(()=> this.duplicateWarning = false, 2000); return; }
     const today = this.getToday();
-    this.cards.push({ name: raw, entries: [], newEntryDate: today, newEntryValue: null });
+    const newCard: ChangeCard = { name: raw, entries: [], newEntryDate: today, newEntryValue: null };
+    this.cards.push(newCard);
     this.newContractName = '';
     this.saveToStorage();
+    this.initializeCardCalculation(newCard);
   }
 
   addEntry(card: ChangeCard) {
@@ -215,6 +246,7 @@ export class ChangeTrackComponent implements OnInit {
     card.entries.unshift({ date, value: card.newEntryValue });
     card.newEntryValue = null;
     this.saveToStorage();
+    this.calculateChange(card);
   }
 
   toggleExpand(card: ChangeCard) {
@@ -244,6 +276,8 @@ export class ChangeTrackComponent implements OnInit {
   deleteEntry(card: ChangeCard, index: number) {
     card.entries.splice(index, 1);
     this.saveToStorage();
+    // Recalculate change after deletion
+    this.calculateChange(card);
   }
 
   getToday(): string {
@@ -257,6 +291,81 @@ export class ChangeTrackComponent implements OnInit {
     if (!date) return '';
     const d = new Date(date + 'T00:00:00');
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // Get latest date from card entries
+  getLatestDate(card: ChangeCard): string {
+    if (!card.entries || card.entries.length === 0) {
+      return this.getToday();
+    }
+    // Sort entries by date and get the latest
+    const sortedEntries = [...card.entries].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    return sortedEntries[0].date;
+  }
+
+  // Get default "from" date (5 days before latest, or earliest available)
+  getDefaultFromDate(card: ChangeCard): string {
+    if (!card.entries || card.entries.length === 0) {
+      return this.getToday();
+    }
+
+    const sortedEntries = [...card.entries].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    const latestDate = this.getLatestDate(card);
+    const latest = new Date(latestDate);
+    
+    // Try to get date 5 days before latest
+    const fiveDaysBefore = new Date(latest);
+    fiveDaysBefore.setDate(fiveDaysBefore.getDate() - 5);
+    const fiveDaysBeforeStr = this.formatDateToString(fiveDaysBefore);
+
+    // Find first entry that is >= 5 days before, or use earliest
+    const entriesInRange = sortedEntries.filter(e => e.date >= fiveDaysBeforeStr);
+    
+    if (entriesInRange.length > 0) {
+      return entriesInRange[0].date;
+    }
+
+    // If no entries in last 5 days, return earliest
+    return sortedEntries[0].date;
+  }
+
+  formatDateToString(date: Date): string {
+    const m = String(date.getMonth()+1).padStart(2,'0');
+    const day = String(date.getDate()).padStart(2,'0');
+    return `${date.getFullYear()}-${m}-${day}`;
+  }
+
+  // Calculate change from selected date to latest date
+  calculateChange(card: ChangeCard): void {
+    if (!card.entries || card.entries.length === 0) {
+      card.calculatedChange = 0;
+      return;
+    }
+
+    const fromDate = card.selectedFromDate || this.getDefaultFromDate(card);
+    const toDate = this.getLatestDate(card);
+
+    // Filter entries between fromDate and toDate (inclusive)
+    const relevantEntries = card.entries.filter(e => 
+      e.date >= fromDate && e.date <= toDate
+    );
+
+    // Sum up all changes
+    const totalChange = relevantEntries.reduce((sum, entry) => sum + entry.value, 0);
+    card.calculatedChange = totalChange;
+  }
+
+  // Initialize card with default from date and calculate change
+  initializeCardCalculation(card: ChangeCard): void {
+    if (!card.selectedFromDate) {
+      card.selectedFromDate = this.getDefaultFromDate(card);
+    }
+    this.calculateChange(card);
   }
 
   formatNumber(num: number): string {
