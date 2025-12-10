@@ -2,6 +2,7 @@ import { Component, OnInit, HostListener, ChangeDetectorRef } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GoogleDriveService } from './google-drive.service';
+import * as XLSX from 'xlsx';
 
 interface ChangeEntry { date: string; value: number; }
 interface ChangeCard { 
@@ -41,6 +42,13 @@ interface ChangeTrackData {
       <div class="add-contract-bar">
         <input type="text" [(ngModel)]="newContractName" placeholder="Enter contract name (e.g., WIPRO25DECFUT)" />
         <button (click)="addContract()">ADD</button>
+        <input 
+          type="file" 
+          id="excelUpload"
+          accept=".xlsx,.xls,.csv"
+          (change)="onExcelUpload($event)"
+          style="display: none">
+        <label for="excelUpload" class="btn-upload">📊 Upload Excel</label>
         <button class="clear-btn" (click)="clearAllCards()">CLEAR PAGE DATA</button>
         
         <!-- Google Drive Sync Button -->
@@ -73,6 +81,7 @@ interface ChangeTrackData {
             </div>
             <div class="header-actions">
               <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
+              <button class="icon-btn delete-card" (click)="deleteCard(card)" aria-label="Delete card">🗑️</button>
               <button class="icon-btn fullscreen" (click)="toggleExpand(card)" [attr.aria-label]="card.expanded ? 'Exit full screen' : 'Full screen'">⛶</button>
               <button *ngIf="card.expanded" class="icon-btn close" (click)="toggleExpand(card)" aria-label="Close fullscreen">✖</button>
             </div>
@@ -103,9 +112,11 @@ interface ChangeTrackData {
     h1 { font-size: 1.4em; color:#ffc107; letter-spacing:1px; }
     .subtitle { font-size:0.8em; color:#bbb; margin-top:4px; }
     .add-contract-bar { display:flex; gap:12px; }
-    .add-contract-bar input { flex:1; padding:10px 14px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:0.9em; }
+    .add-contract-bar input[type="text"] { flex:1; padding:10px 14px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:0.9em; }
     .add-contract-bar button { padding:10px 20px; background:#2196f3; border:none; border-radius:8px; color:#fff; font-weight:600; cursor:pointer; font-size:0.85em; letter-spacing:1px; }
     .add-contract-bar button:hover { background:#1976d2; }
+    .btn-upload { padding:10px 20px; background:#4caf50; border:none; border-radius:8px; color:#fff; font-weight:600; cursor:pointer; font-size:0.85em; letter-spacing:1px; display:inline-block; }
+    .btn-upload:hover { background:#43a047; }
     .clear-btn { background: rgba(255,255,255,0.15); }
     .clear-btn:hover { background: rgba(255,255,255,0.25); }
     .warn { color:#ff6e6e; font-size:0.75em; }
@@ -131,6 +142,8 @@ interface ChangeTrackData {
     .icon-btn.add:hover { background:#43a047; }
     .icon-btn.fullscreen { background: rgba(255,255,255,0.15); color:#fff; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.25); }
     .icon-btn.fullscreen:hover { background: rgba(255,255,255,0.25); }
+    .icon-btn.delete-card { background: #ff6e6e; color:#fff; width:38px; height:34px; font-size:0.9em; border:1px solid rgba(255,255,255,0.25); }
+    .icon-btn.delete-card:hover { background: #f44336; }
     .icon-btn.close { background:#ff6e6e; color:#fff; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.25); margin-right:68px; }
     .icon-btn.close:hover { background:#f44336; }
     .icon-btn.delete { background:#ff6e6e; color:#fff; }
@@ -237,6 +250,97 @@ export class ChangeTrackComponent implements OnInit {
     this.initializeCardCalculation(newCard);
   }
 
+  onExcelUpload(event: any) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+        if (jsonData.length < 2) {
+          this.showStatus('Excel file is empty or invalid', 'error');
+          event.target.value = '';
+          return;
+        }
+
+        // Get contract name from file name (remove extension)
+        const fileName = file.name;
+        const contractName = fileName.replace(/\.(xlsx|xls|csv)$/i, '').trim();
+        if (!contractName) {
+          this.showStatus('File name is empty. Please provide a valid file name as contract name.', 'error');
+          event.target.value = '';
+          return;
+        }
+
+        // Check if contract already exists
+        const exists = this.cards.some(c => c.name.toLowerCase() === contractName.toLowerCase());
+        if (exists) {
+          this.showStatus(`Contract "${contractName}" already exists`, 'error');
+          event.target.value = '';
+          return;
+        }
+
+        // Parse entries starting from row 2 (skip row 1 header: Date, Change)
+        const entries: ChangeEntry[] = [];
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (row[0] && row[1] !== undefined) {
+            const dateValue = row[0];
+            const changeValue = Number(row[1]);
+
+            // Handle Excel date serial number
+            let dateStr: string;
+            if (typeof dateValue === 'number') {
+              // Excel serial date to JavaScript Date
+              const excelDate = XLSX.SSF.parse_date_code(dateValue);
+              dateStr = `${excelDate.y}-${String(excelDate.m).padStart(2, '0')}-${String(excelDate.d).padStart(2, '0')}`;
+            } else {
+              // Assume it's already a string in YYYY-MM-DD format
+              dateStr = String(dateValue).trim();
+            }
+
+            if (dateStr && !isNaN(changeValue)) {
+              entries.push({ date: dateStr, value: changeValue });
+            }
+          }
+        }
+
+        if (entries.length === 0) {
+          this.showStatus('No valid entries found in Excel file', 'error');
+          event.target.value = '';
+          return;
+        }
+
+        // Create new card with entries
+        const today = this.getToday();
+        const newCard: ChangeCard = {
+          name: contractName,
+          entries: entries,
+          newEntryDate: today,
+          newEntryValue: null
+        };
+        this.cards.push(newCard);
+        this.saveToStorage();
+        this.initializeCardCalculation(newCard);
+
+        this.showStatus(`Successfully imported "${contractName}" with ${entries.length} entries`, 'success');
+        event.target.value = '';
+      } catch (error) {
+        console.error('Error reading Excel file:', error);
+        this.showStatus('Error reading Excel file. Please check the format.', 'error');
+        event.target.value = '';
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  }
+
   addEntry(card: ChangeCard) {
     if (card.newEntryValue === null || isNaN(card.newEntryValue)) return;
     const date = card.newEntryDate || this.getToday();
@@ -273,6 +377,16 @@ export class ChangeTrackComponent implements OnInit {
     this.cards = [];
     if (typeof window !== 'undefined') {
       try { localStorage.removeItem(this.storageKey); } catch {}
+    }
+  }
+
+  deleteCard(card: ChangeCard) {
+    const confirmDelete = confirm(`Delete contract "${card.name}" and all its entries? This cannot be undone.`);
+    if (!confirmDelete) return;
+    const index = this.cards.indexOf(card);
+    if (index > -1) {
+      this.cards.splice(index, 1);
+      this.saveToStorage();
     }
   }
 
