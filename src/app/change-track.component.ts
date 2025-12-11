@@ -4,12 +4,27 @@ import { FormsModule } from '@angular/forms';
 import { GoogleDriveService } from './google-drive.service';
 import * as XLSX from 'xlsx';
 
-interface ChangeEntry { date: string; value: number; }
+interface ChangeEntry { 
+  date: string; 
+  value: number; 
+  open?: number; 
+  close?: number; 
+  volume?: number;
+  isEditing?: boolean;
+  editDate?: string;
+  editValue?: number;
+  editOpen?: number;
+  editClose?: number;
+  editVolume?: number;
+}
 interface ChangeCard { 
   name: string; 
   entries: ChangeEntry[]; 
   newEntryDate: string; 
   newEntryValue: number | null; 
+  newEntryOpen?: number | null; 
+  newEntryClose?: number | null; 
+  newEntryVolume?: number | null; 
   duplicateDate?: boolean; 
   expanded?: boolean;
   selectedFromDate?: string; // Date picker for change calculation
@@ -87,18 +102,47 @@ interface ChangeTrackData {
             </div>
           </div>
           <div class="entry-add-row">
-            <input type="date" [(ngModel)]="card.newEntryDate" />
-            <input type="number" [(ngModel)]="card.newEntryValue" placeholder="Change (₹)" />
+            <input type="date" [(ngModel)]="card.newEntryDate" class="input-date" />
+            <input type="number" [(ngModel)]="card.newEntryValue" placeholder="Change" class="input-change" />
+            <input type="number" [(ngModel)]="card.newEntryOpen" placeholder="Open" class="input-small" />
+            <input type="number" [(ngModel)]="card.newEntryClose" placeholder="Close" class="input-small" />
+            <input type="number" [(ngModel)]="card.newEntryVolume" placeholder="Volume" class="input-small" />
           </div>
           <div *ngIf="card.duplicateDate" class="warn small">Date already recorded.</div>
           <div *ngIf="card.entries.length === 0" class="empty">No changes recorded yet.</div>
-          <div class="entry-list">
-            <div *ngFor="let e of card.entries; let i = index" class="entry-item">
-              <span class="date">{{ formatDisplayDate(e.date) }}</span>
-              <span class="value" [class.profit]="e.value >= 0" [class.loss]="e.value < 0">
-                {{ e.value >= 0 ? '+' : '-' }}₹{{ formatNumber(e.value) }}
-              </span>
-              <button class="icon-btn delete" (click)="deleteEntry(card, i)" title="Delete">−</button>
+          <div class="entry-list-wrapper">
+            <div class="entry-list">
+              <div *ngFor="let e of card.entries; let i = index" class="entry-item" [class.editing]="e.isEditing">
+              <!-- View Mode -->
+              <ng-container *ngIf="!e.isEditing">
+                <span class="date">{{ formatDisplayDate(e.date) }}</span>
+                <span class="value-wrapper">
+                  <span class="value" [class.profit]="e.value >= 0" [class.loss]="e.value < 0">
+                    {{ e.value >= 0 ? '+' : '-' }}₹{{ formatNumber(e.value) }}
+                  </span>
+                  <div *ngIf="e.open !== undefined || e.close !== undefined || e.volume !== undefined" class="tooltip-bubble">
+                    <div class="tooltip-row" *ngIf="e.open !== undefined"><strong>Open:</strong> ₹{{ formatNumber(e.open) }}</div>
+                    <div class="tooltip-row" *ngIf="e.close !== undefined"><strong>Close:</strong> ₹{{ formatNumber(e.close) }}</div>
+                    <div class="tooltip-row" *ngIf="e.volume !== undefined"><strong>Volume:</strong> {{ e.volume.toLocaleString('en-IN') }}</div>
+                  </div>
+                </span>
+                <div class="entry-actions">
+                  <button class="icon-btn edit" (click)="startEdit(e)" title="Edit">✎</button>
+                  <button class="icon-btn delete" (click)="deleteEntry(card, i)" title="Delete">−</button>
+                </div>
+              </ng-container>
+              <!-- Edit Mode -->
+              <ng-container *ngIf="e.isEditing">
+                <input type="date" [(ngModel)]="e.editDate" class="edit-input-date" />
+                <input type="number" [(ngModel)]="e.editValue" class="edit-input-value" />
+                <input type="number" [(ngModel)]="e.editOpen" placeholder="Open" class="edit-input-small" />
+                <input type="number" [(ngModel)]="e.editClose" placeholder="Close" class="edit-input-small" />
+                <input type="number" [(ngModel)]="e.editVolume" placeholder="Vol" class="edit-input-small" />
+                <div class="entry-actions">
+                  <button class="icon-btn save" (click)="saveEdit(card, e)" title="Save">✓</button>
+                  <button class="icon-btn cancel" (click)="cancelEdit(e)" title="Cancel">✖</button>
+                </div>
+              </ng-container>
             </div>
           </div>
         </div>
@@ -120,21 +164,24 @@ interface ChangeTrackData {
     .clear-btn { background: rgba(255,255,255,0.15); }
     .clear-btn:hover { background: rgba(255,255,255,0.25); }
     .warn { color:#ff6e6e; font-size:0.75em; }
-    .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(450px,1fr)); gap:18px; align-items:start; }
-    .ct-card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; display:flex; flex-direction: column; gap:12px; position:relative; }
+    .cards-wrapper { display:grid; grid-template-columns: repeat(auto-fill,minmax(500px,1fr)); gap:18px; align-items:start; }
+    .ct-card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; display:flex; flex-direction: column; gap:12px; position:relative; overflow:visible; }
     .card-header { display:flex; align-items:center; gap:10px; justify-content: space-between; }
     .header-actions { display:flex; gap:6px; align-items:center; flex-shrink: 0; }
     .card-title { font-size:0.9em; font-weight:600; letter-spacing:1px; color:#ffc107; white-space: nowrap; flex-shrink: 0; }
     .change-calculator { display:flex; align-items:center; gap:6px; flex-wrap: nowrap; flex: 1; justify-content: flex-end; margin: 0 10px; }
-    .date-picker-small { padding:4px 8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,193,7,0.3); border-radius:6px; color:#fff; font-size:0.7em; cursor:pointer; min-width: 100px; }
-    .date-picker-small::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; width: 14px; height: 14px; }
+    .date-picker-small { padding:3px 6px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,193,7,0.3); border-radius:6px; color:#fff; font-size:0.65em; cursor:pointer; min-width: 90px; }
+    .date-picker-small::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; width: 12px; height: 12px; }
     .calculated-change { font-size:0.8em; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(0,0,0,0.3); white-space: nowrap; min-width: 60px; text-align: center; }
     .calculated-change.profit { color:#4caf50; }
     .calculated-change.loss { color:#f44336; }
     .days-badge { font-size:0.75em; font-weight:700; padding:2px 6px; border-radius:50%; color:#ffc107; border:1.5px solid rgba(255, 255, 255, 0.7); white-space: nowrap; min-width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
-    .entry-add-row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:center; z-index:1; margin-top:4px; }
+    .entry-add-row { display:grid; grid-template-columns: 95px 100px 70px 70px 70px; gap:4px; align-items:center; z-index:1; margin-top:4px; }
     .warn.small { font-size:0.65em; margin-top:-4px; }
-    .entry-add-row input { padding:8px 10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.8em; }
+    .entry-add-row input { padding:4px 6px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.7em; width:100%; box-sizing:border-box; }
+    .entry-add-row .input-date { font-size:0.65em; }
+    .entry-add-row .input-change { }
+    .entry-add-row .input-small { font-size:0.65em; }
     .icon-btn { border:none; cursor:pointer; padding:8px 10px; border-radius:8px; font-size:0.9em; display:flex; align-items:center; justify-content:center; font-weight:600; }
     .icon-btn.add { background:#4caf50; color:#fff; width:42px; height:34px; font-size:1.3em; line-height:1; display:flex; align-items:center; justify-content:center; font-weight:700; border:1px solid rgba(255,255,255,0.3); }
     .icon-btn.add.header-add { flex-shrink:0; }
@@ -148,8 +195,28 @@ interface ChangeTrackData {
     .icon-btn.close:hover { background:#f44336; }
     .icon-btn.delete { background:#ff6e6e; color:#fff; }
     .icon-btn.delete:hover { background:#f44336; }
+    .icon-btn.edit { background:#2196f3; color:#fff; font-size:0.8em; padding:6px 8px; }
+    .icon-btn.edit:hover { background:#1976d2; }
+    .icon-btn.save { background:#4caf50; color:#fff; font-size:0.9em; padding:6px 8px; }
+    .icon-btn.save:hover { background:#43a047; }
+    .icon-btn.cancel { background:#ff9800; color:#fff; font-size:0.8em; padding:6px 8px; }
+    .icon-btn.cancel:hover { background:#f57c00; }
+    .entry-actions { display:flex; gap:4px; }
+    .entry-item.editing { grid-template-columns: 95px 100px 70px 70px 70px 100px; background:rgba(33,150,243,0.08); padding:8px 4px; border-radius:6px; }
+    .edit-input-date, .edit-input-value, .edit-input-small { padding:4px 6px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:#fff; font-size:0.7em; width:100%; box-sizing:border-box; }
+    .edit-input-date { font-size:0.65em; }
+    .edit-input-small { font-size:0.65em; }
     .empty { font-size:0.7em; color:#777; padding:4px 0; }
-    .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; padding-right:4px; }
+    .entry-list-wrapper { position:relative; overflow:visible; }
+    .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; overflow-x:visible; padding-right:4px; }
+    .entry-list::-webkit-scrollbar { width:8px; }
+    .entry-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.05); border-radius:4px; }
+    .entry-list::-webkit-scrollbar-thumb { background:rgba(255,193,7,0.4); border-radius:4px; }
+    .entry-list::-webkit-scrollbar-thumb:hover { background:rgba(255,193,7,0.6); }
+    .ct-card.expanded::-webkit-scrollbar { width:10px; }
+    .ct-card.expanded::-webkit-scrollbar-track { background:rgba(255,255,255,0.05); border-radius:5px; }
+    .ct-card.expanded::-webkit-scrollbar-thumb { background:rgba(255,193,7,0.4); border-radius:5px; }
+    .ct-card.expanded::-webkit-scrollbar-thumb:hover { background:rgba(255,193,7,0.6); }
     .ct-card.expanded { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; margin:0; border-radius:0; padding:28px 36px; background:#1a2332; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); overflow:auto; display:flex; flex-direction:column; }
     .ct-card.expanded .entry-list { max-height: none; }
     .ct-card.expanded { padding:40px 56px; }
@@ -160,12 +227,17 @@ interface ChangeTrackData {
     .ct-card.expanded .entry-add-row input { font-size:0.9em; }
     .ct-card.expanded .entry-add-row input { font-size:0.9em; }
     .cards-wrapper.expanding .ct-card:not(.expanded) { display:none; }
-    .entry-item { display:grid; grid-template-columns: 140px 1fr 50px; gap:12px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .entry-item { display:grid; grid-template-columns: 100px 1fr 80px; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); position:relative; }
     .entry-item:last-child { border-bottom:none; }
     .date { font-size:0.7em; color:#bbb; }
     .value { font-size:0.85em; font-weight:600; text-align:left; }
     .value.profit { color:#4caf50; }
     .value.loss { color:#ff6e6e; }
+    .value-wrapper { position:relative; display:inline-block; cursor:help; }
+    .value-wrapper:hover .tooltip-bubble { display:block; }
+    .tooltip-bubble { display:none; position:absolute; background:rgba(0,0,0,0.9); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.75em; z-index:99999; pointer-events:none; white-space:nowrap; margin-left:15px; margin-top:-30px; }
+    .tooltip-row { margin:3px 0; }
+    .tooltip-row strong { color:#ffc107; margin-right:8px; }
     .footer-note { font-size:0.6em; color:#888; text-align:center; margin-top:4px; }
     code { background: rgba(0,0,0,0.3); padding:2px 6px; border-radius:6px; font-size:0.85em; }
     
@@ -286,13 +358,16 @@ export class ChangeTrackComponent implements OnInit {
           return;
         }
 
-        // Parse entries starting from row 2 (skip row 1 header: Date, Change)
+        // Parse entries starting from row 2 (skip row 1 header: Date, Change, Open, Close, Volume)
         const entries: ChangeEntry[] = [];
         for (let i = 1; i < jsonData.length; i++) {
           const row = jsonData[i];
           if (row[0] && row[1] !== undefined) {
             const dateValue = row[0];
             const changeValue = Number(row[1]);
+            const openValue = row[2] !== undefined && row[2] !== '' ? Number(row[2]) : undefined;
+            const closeValue = row[3] !== undefined && row[3] !== '' ? Number(row[3]) : undefined;
+            const volumeValue = row[4] !== undefined && row[4] !== '' ? Number(row[4]) : undefined;
 
             // Handle Excel date serial number
             let dateStr: string;
@@ -306,7 +381,11 @@ export class ChangeTrackComponent implements OnInit {
             }
 
             if (dateStr && !isNaN(changeValue)) {
-              entries.push({ date: dateStr, value: changeValue });
+              const entry: ChangeEntry = { date: dateStr, value: changeValue };
+              if (openValue !== undefined && !isNaN(openValue)) entry.open = openValue;
+              if (closeValue !== undefined && !isNaN(closeValue)) entry.close = closeValue;
+              if (volumeValue !== undefined && !isNaN(volumeValue)) entry.volume = volumeValue;
+              entries.push(entry);
             }
           }
         }
@@ -350,8 +429,15 @@ export class ChangeTrackComponent implements OnInit {
       setTimeout(() => { card.duplicateDate = false; }, 1800);
       return;
     }
-    card.entries.unshift({ date, value: card.newEntryValue });
+    const entry: ChangeEntry = { date, value: card.newEntryValue };
+    if (card.newEntryOpen !== null && card.newEntryOpen !== undefined) entry.open = card.newEntryOpen;
+    if (card.newEntryClose !== null && card.newEntryClose !== undefined) entry.close = card.newEntryClose;
+    if (card.newEntryVolume !== null && card.newEntryVolume !== undefined) entry.volume = card.newEntryVolume;
+    card.entries.unshift(entry);
     card.newEntryValue = null;
+    card.newEntryOpen = null;
+    card.newEntryClose = null;
+    card.newEntryVolume = null;
     this.saveToStorage();
     this.calculateChange(card);
   }
@@ -395,6 +481,59 @@ export class ChangeTrackComponent implements OnInit {
     this.saveToStorage();
     // Recalculate change after deletion
     this.calculateChange(card);
+  }
+
+  startEdit(entry: ChangeEntry) {
+    entry.isEditing = true;
+    entry.editDate = entry.date;
+    entry.editValue = entry.value;
+    entry.editOpen = entry.open;
+    entry.editClose = entry.close;
+    entry.editVolume = entry.volume;
+  }
+
+  saveEdit(card: ChangeCard, entry: ChangeEntry) {
+    if (!entry.editDate || entry.editValue === null || entry.editValue === undefined) {
+      alert('Please fill in date and change value');
+      return;
+    }
+
+    // Check for duplicate date (exclude current entry)
+    const duplicate = card.entries.some(e => e !== entry && e.date === entry.editDate);
+    if (duplicate) {
+      alert('This date already exists for another entry');
+      return;
+    }
+
+    // Update entry
+    entry.date = entry.editDate!;
+    entry.value = entry.editValue!;
+    entry.open = entry.editOpen !== null && entry.editOpen !== undefined ? entry.editOpen : undefined;
+    entry.close = entry.editClose !== null && entry.editClose !== undefined ? entry.editClose : undefined;
+    entry.volume = entry.editVolume !== null && entry.editVolume !== undefined ? entry.editVolume : undefined;
+    
+    // Clear edit mode
+    entry.isEditing = false;
+    delete entry.editDate;
+    delete entry.editValue;
+    delete entry.editOpen;
+    delete entry.editClose;
+    delete entry.editVolume;
+
+    // Re-sort entries by date descending
+    card.entries.sort((a, b) => b.date.localeCompare(a.date));
+    
+    this.saveToStorage();
+    this.calculateChange(card);
+  }
+
+  cancelEdit(entry: ChangeEntry) {
+    entry.isEditing = false;
+    delete entry.editDate;
+    delete entry.editValue;
+    delete entry.editOpen;
+    delete entry.editClose;
+    delete entry.editVolume;
   }
 
   getToday(): string {
