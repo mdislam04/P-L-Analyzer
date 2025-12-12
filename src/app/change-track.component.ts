@@ -579,19 +579,19 @@ export class ChangeTrackComponent implements OnInit {
     const latestDate = this.getLatestDate(card);
     const latest = new Date(latestDate);
     
-    // Try to get date 5 days before latest
-    const fiveDaysBefore = new Date(latest);
-    fiveDaysBefore.setDate(fiveDaysBefore.getDate() - 5);
-    const fiveDaysBeforeStr = this.formatDateToString(fiveDaysBefore);
+    // Try to get date 6 days before latest (to ensure 5 days difference)
+    const sixDaysBefore = new Date(latest);
+    sixDaysBefore.setDate(sixDaysBefore.getDate() - 6);
+    const sixDaysBeforeStr = this.formatDateToString(sixDaysBefore);
 
-    // Find first entry that is >= 5 days before, or use earliest
-    const entriesInRange = sortedEntries.filter(e => e.date >= fiveDaysBeforeStr);
+    // Find first entry that is >= 6 days before, or use earliest
+    const entriesInRange = sortedEntries.filter(e => e.date >= sixDaysBeforeStr);
     
     if (entriesInRange.length > 0) {
       return entriesInRange[0].date;
     }
 
-    // If no entries in last 5 days, return earliest
+    // If no entries in last 6 days, return earliest
     return sortedEntries[0].date;
   }
 
