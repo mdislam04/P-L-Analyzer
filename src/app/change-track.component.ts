@@ -176,12 +176,12 @@ interface ChangeTrackData {
     .calculated-change.profit { color:#4caf50; }
     .calculated-change.loss { color:#f44336; }
     .days-badge { font-size:0.75em; font-weight:700; padding:2px 6px; border-radius:50%; color:#ffc107; border:1.5px solid rgba(255, 255, 255, 0.7); white-space: nowrap; min-width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
-    .entry-add-row { display:grid; grid-template-columns: 95px 100px 70px 70px 70px; gap:4px; align-items:center; z-index:1; margin-top:4px; }
+    .entry-add-row { display:grid; grid-template-columns: 110px 120px 85px 85px 85px; gap:6px; align-items:center; z-index:1; margin-top:4px; }
     .warn.small { font-size:0.65em; margin-top:-4px; }
-    .entry-add-row input { padding:4px 6px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.7em; width:100%; box-sizing:border-box; }
-    .entry-add-row .input-date { font-size:0.65em; }
+    .entry-add-row input { padding:6px 8px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.8em; width:100%; box-sizing:border-box; }
+    .entry-add-row .input-date { font-size:0.75em; }
     .entry-add-row .input-change { }
-    .entry-add-row .input-small { font-size:0.65em; }
+    .entry-add-row .input-small { font-size:0.75em; }
     .icon-btn { border:none; cursor:pointer; padding:8px 10px; border-radius:8px; font-size:0.9em; display:flex; align-items:center; justify-content:center; font-weight:600; }
     .icon-btn.add { background:#4caf50; color:#fff; width:42px; height:34px; font-size:1.3em; line-height:1; display:flex; align-items:center; justify-content:center; font-weight:700; border:1px solid rgba(255,255,255,0.3); }
     .icon-btn.add.header-add { flex-shrink:0; }
@@ -201,11 +201,13 @@ interface ChangeTrackData {
     .icon-btn.save:hover { background:#43a047; }
     .icon-btn.cancel { background:#ff9800; color:#fff; font-size:0.8em; padding:6px 8px; }
     .icon-btn.cancel:hover { background:#f57c00; }
-    .entry-actions { display:flex; gap:4px; }
-    .entry-item.editing { grid-template-columns: 95px 100px 70px 70px 70px 100px; background:rgba(33,150,243,0.08); padding:8px 4px; border-radius:6px; }
-    .edit-input-date, .edit-input-value, .edit-input-small { padding:4px 6px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:#fff; font-size:0.7em; width:100%; box-sizing:border-box; }
-    .edit-input-date { font-size:0.65em; }
-    .edit-input-small { font-size:0.65em; }
+    .entry-actions { display:flex; gap:4px; opacity:0; transition: opacity 0.2s ease-in-out; }
+    .entry-item:hover .entry-actions { opacity:1; }
+    .entry-item.editing { grid-template-columns: 110px 120px 85px 85px 85px 100px; background:rgba(33,150,243,0.08); padding:8px 4px; border-radius:6px; }
+    .entry-item.editing .entry-actions { opacity:1; }
+    .edit-input-date, .edit-input-value, .edit-input-small { padding:6px 8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:#fff; font-size:0.8em; width:100%; box-sizing:border-box; }
+    .edit-input-date { font-size:0.75em; }
+    .edit-input-small { font-size:0.75em; }
     .empty { font-size:0.7em; color:#777; padding:4px 0; }
     .entry-list-wrapper { position:relative; overflow:visible; }
     .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; overflow-x:visible; padding-right:4px; }
