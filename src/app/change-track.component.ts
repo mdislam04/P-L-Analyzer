@@ -338,7 +338,7 @@ export class ChangeTrackComponent implements OnInit {
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
         if (jsonData.length < 2) {
-          this.showStatus('Excel file is empty or invalid', 'error');
+          this.showStatus('❌ Excel file is empty or invalid', 'error');
           event.target.value = '';
           return;
         }
@@ -347,7 +347,7 @@ export class ChangeTrackComponent implements OnInit {
         const fileName = file.name;
         const contractName = fileName.replace(/\.(xlsx|xls|csv)$/i, '').trim();
         if (!contractName) {
-          this.showStatus('File name is empty. Please provide a valid file name as contract name.', 'error');
+          this.showStatus('❌ File name is empty. Please provide a valid file name as contract name.', 'error');
           event.target.value = '';
           return;
         }
@@ -355,7 +355,7 @@ export class ChangeTrackComponent implements OnInit {
         // Check if contract already exists
         const exists = this.cards.some(c => c.name.toLowerCase() === contractName.toLowerCase());
         if (exists) {
-          this.showStatus(`Contract "${contractName}" already exists`, 'error');
+          this.showStatus(`⚠️ Contract "${contractName}" already exists`, 'error');
           event.target.value = '';
           return;
         }
@@ -393,7 +393,7 @@ export class ChangeTrackComponent implements OnInit {
         }
 
         if (entries.length === 0) {
-          this.showStatus('No valid entries found in Excel file', 'error');
+          this.showStatus('⚠️ No valid entries found in Excel file', 'error');
           event.target.value = '';
           return;
         }
@@ -410,11 +410,14 @@ export class ChangeTrackComponent implements OnInit {
         this.saveToStorage();
         this.initializeCardCalculation(newCard);
 
-        this.showStatus(`Successfully imported "${contractName}" with ${entries.length} entries`, 'success');
+        // Trigger change detection to refresh the view immediately
+        this.cdr.detectChanges();
+
+        this.showStatus(`✅ Successfully imported "${contractName}" with ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}!`, 'success');
         event.target.value = '';
       } catch (error) {
         console.error('Error reading Excel file:', error);
-        this.showStatus('Error reading Excel file. Please check the format.', 'error');
+        this.showStatus('❌ Error reading Excel file. Please check the format.', 'error');
         event.target.value = '';
       }
     };
@@ -808,8 +811,10 @@ export class ChangeTrackComponent implements OnInit {
   private showStatus(message: string, type: 'success' | 'error') {
     this.statusMessage = message;
     this.statusType = type;
+    this.cdr.detectChanges();
     setTimeout(() => {
       this.statusMessage = '';
-    }, 4000);
+      this.cdr.detectChanges();
+    }, 5000);
   }
 }
