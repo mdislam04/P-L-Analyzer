@@ -566,33 +566,25 @@ export class ChangeTrackComponent implements OnInit {
     return sortedEntries[0].date;
   }
 
-  // Get default "from" date (5 days before latest, or earliest available)
+  // Get default "from" date (pick 5th most recent entry)
   getDefaultFromDate(card: ChangeCard): string {
     if (!card.entries || card.entries.length === 0) {
       return this.getToday();
     }
 
+    // Sort entries by date descending (newest first)
     const sortedEntries = [...card.entries].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+      new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
-    const latestDate = this.getLatestDate(card);
-    const latest = new Date(latestDate);
-    
-    // Try to get date 6 days before latest (to ensure 5 days difference)
-    const sixDaysBefore = new Date(latest);
-    sixDaysBefore.setDate(sixDaysBefore.getDate() - 6);
-    const sixDaysBeforeStr = this.formatDateToString(sixDaysBefore);
-
-    // Find first entry that is >= 6 days before, or use earliest
-    const entriesInRange = sortedEntries.filter(e => e.date >= sixDaysBeforeStr);
-    
-    if (entriesInRange.length > 0) {
-      return entriesInRange[0].date;
+    // If we have 5 or more entries, return the 5th one (index 4)
+    // This gives us exactly 5 days of data (entries 0, 1, 2, 3, 4)
+    if (sortedEntries.length >= 5) {
+      return sortedEntries[4].date;
     }
 
-    // If no entries in last 6 days, return earliest
-    return sortedEntries[0].date;
+    // If less than 5 entries, return the earliest one
+    return sortedEntries[sortedEntries.length - 1].date;
   }
 
   formatDateToString(date: Date): string {
@@ -621,8 +613,8 @@ export class ChangeTrackComponent implements OnInit {
     const totalChange = relevantEntries.reduce((sum, entry) => sum + entry.value, 0);
     card.calculatedChange = totalChange;
 
-    // Calculate number of days
-    card.daysCount = this.calculateDaysCount(fromDate, toDate);
+    // Count number of trading days (entries) in the range
+    card.daysCount = relevantEntries.length;
   }
 
   // Calculate number of days between two dates
