@@ -1,0 +1,32 @@
+{
+  "name": "Trading Dashboard - P&L Analyzer",
+  "short_name": "Trading Dashboard",
+  "description": "Track and analyze trading contract performance with advanced metrics, technical analysis, and cloud sync",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a2332",
+  "theme_color": "#1a2332",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["finance", "productivity", "business"],
+  "screenshots": []
+}
