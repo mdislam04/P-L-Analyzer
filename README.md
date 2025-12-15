@@ -44,22 +44,43 @@ A comprehensive Angular-based trading performance dashboard for tracking and ana
 See `docs/dashboardv2.md` for the full V2 roadmap and design.
 - **Monthly Summary**: Concise overview of total profit, loss, and net P&L
 
-### 💡 Key Capabilities
+### � Change Track
+Track daily price changes per contract with extended metrics:
+- **Contract Cards**: One card per unique contract name
+- **Pin/Star Feature**: Pin important contracts to top with star (⭐) icon
+- **Daily Entries**: Record change, open, close, and volume data
+- **Inline Editing**: Edit entries directly with ✎ button
+- **Column View**: Organized display with headers (Date, Change, Open, Close, Volume, Actions)
+- **Volume Formatting**: Indian number system (K/L/Cr) with tooltip for exact values
+- **5-Day Default**: Shows exactly 5 trading days by default (ignoring weekends)
+- **Change Calculator**: Date range picker with cumulative change badge
+- **Excel Import**: Bulk import contract data from Excel/CSV files
+- **Fullscreen Mode**: Expand any card to full viewport for detailed analysis
+- **Google Drive Sync**: Backup and sync data across devices
+- **Hover Actions**: Edit and delete buttons appear on row hover
+- **Auto-Sort**: Pinned cards first (alphabetically), then unpinned (alphabetically)
+
+### �💡 Key Capabilities
 - Real-time P&L calculations
-- Color-coded profit/loss indicators
+- Color-coded profit/loss indicators (green/red)
 - Contract type differentiation (Regular vs NIFTY)
 - Month-wise tracking
-- Delete individual contracts
+- Priority management with pin/star feature
+- Inline data editing
+- Delete individual contracts or entries
 - Clear all data functionality
+- Persistent storage with auto-save
+- Indian currency formatting (₹)
 
 ## Technology Stack
 
-- **Framework**: Angular 21.0.0
+- **Framework**: Angular 21.0.0 (Standalone Components)
 - **Language**: TypeScript 5.9.2
 - **Build Tool**: Angular CLI 21.0.1
 - **Testing**: Vitest 4.0.8
-- **Excel Processing**: XLSX library
+- **Excel Processing**: XLSX 0.18.5
 - **Styling**: Component-scoped CSS with gradient effects
+- **Storage**: localStorage with Google Drive sync
 
 ## Prerequisites
 

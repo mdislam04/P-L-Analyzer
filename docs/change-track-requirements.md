@@ -1,31 +1,55 @@
 # Change Track Feature Requirements
 
 ## Overview
-A "Change Track" tab enables manual tracking of day-to-day price change values (or custom deltas) per unique contract name. Users can create multiple contract cards, each holding dated change entries. Data persists locally (localStorage) and syncs with Google Drive for backup and cross-device access.
+A "Change Track" tab enables manual tracking of day-to-day price change values (or custom deltas) per unique contract name. Users can create multiple contract cards, each holding dated change entries with optional open, close, and volume data. Data persists locally (localStorage) and syncs with Google Drive for backup and cross-device access.
 
 ## Goals
 - Rapid manual entry of daily change values per contract.
+- Track additional metrics: open price, close price, and volume.
 - Visual separation: one card per unique contract name.
+- Prioritize important contracts with pin/star feature.
 - Persistent storage across sessions (localStorage key: `changeTrackData`).
 - Google Drive sync for backup and cross-device access.
 - Bulk import via Excel/CSV files.
 - Date-range based change calculation with visual indicators.
+- Display exactly 5 trading days by default (ignoring weekends/gaps).
 
 ## Data Model
 ```
-interface ChangeEntry { date: string; value: number; }
+interface ChangeEntry { 
+  date: string; 
+  value: number; 
+  open?: number; 
+  close?: number; 
+  volume?: number;
+  isEditing?: boolean;
+  editDate?: string;
+  editValue?: number;
+  editOpen?: number;
+  editClose?: number;
+  editVolume?: number;
+}
+
 interface ChangeCard { 
   name: string; 
   entries: ChangeEntry[]; 
   newEntryDate: string; 
   newEntryValue: number | null; 
+  newEntryOpen?: number | null; 
+  newEntryClose?: number | null; 
+  newEntryVolume?: number | null; 
   duplicateDate?: boolean; 
   expanded?: boolean;
   selectedFromDate?: string; // Date picker for change calculation
   calculatedChange?: number; // Calculated change from selected date to latest
-  daysCount?: number; // Number of days for which change is calculated
+  daysCount?: number; // Number of trading days (entries) in calculation
+  isPinned?: boolean; // Pin card to top
 }
-LocalStorage Shape: { [contractName: string]: ChangeEntry[] }
+
+LocalStorage Shape (v2.0): {
+  version: '2.0',
+  cards: [{ name: string, entries: ChangeEntry[], isPinned: boolean }]
+}
 ```
 
 ## UI Elements
@@ -35,68 +59,115 @@ LocalStorage Shape: { [contractName: string]: ChangeEntry[] }
    - Button: 📊 Upload Excel → imports contract with entries from Excel/CSV file
    - Button: CLEAR PAGE DATA → clears all cards with confirmation
    - Button: 🔄 Sync Drive → syncs data with Google Drive (if connected)
-   - Feedback: status messages for success/error states
+   - Feedback: status messages with emoji icons for success/error states
    
 2. Card Layout (one per contract):
    - Header Row (single line):
      - Contract name
      - Date picker (for change calculation start date)
      - Calculated change badge (profit/loss colored)
-     - Days count badge (yellow text on black, white border)
+     - Days count badge (shows number of trading entries)
+     - ☆/⭐ button (pin/unpin card to top)
      - + button (add entry)
      - 🗑️ button (delete entire card)
      - ⛶ button (fullscreen toggle)
      - ✖ button (close fullscreen, only in expanded mode)
    - Entry Row Inputs:
-     - Date picker (`type=date`) default: today (YYYY-MM-DD) - smaller size (110px)
-     - Number input for change value (supports negatives)
-     - Number input for open price (optional)
-     - Number input for close price (optional)
-     - Number input for volume (optional)
+     - Date input (defaults to today)
+     - Change value input (required)
+     - Open price input (optional)
+     - Close price input (optional)
+     - Volume input (optional)
+   - Column Headers:
+     - Date | Change | Open | Close | Volume | Actions
+   - Entry Row Inputs:
+     - Date picker (`type=date`) default: today (YYYY-MM-DD) - 110px width
+     - Number input for change value (supports negatives) - 120px width
+     - Number input for open price (optional) - 85px width
+     - Number input for close price (optional) - 85px width
+     - Number input for volume (optional) - 85px width
      - Add (+) icon button to append entry
+   - Column Headers (with alignment):
+     - Date (left) | Change (left) | Open (right) | Close (right) | Volume (right) | Actions (center)
    - Entries List:
      - Chronological (newest first)
-     - Each entry: formatted date + value with sign/color
-     - Hover tooltip on change value shows additional data (open, close, volume) if available
-     - Delete (trash icon) removes entry
+     - Grid layout with 6 columns matching headers
+     - Each entry row shows:
+       - Date: formatted (e.g., "Dec 11, 2025")
+       - Change: ±₹ formatted value (green for profit, red for loss)
+       - Open: ₹ formatted price or "-" if empty
+       - Close: ₹ formatted price or "-" if empty
+       - Volume: formatted in Indian system (K/L/Cr) or "-" if empty
+       - Actions: Edit (✎) and Delete (−) buttons (appear on hover)
+     - Volume tooltip shows exact value in Indian locale format
+     - Inline editing: click edit to modify entry directly
+     - Delete confirmation for entry removal
      
 3. Fullscreen Mode:
-   - Card expands to full viewport
+   - Card expands to full viewport with overlay
    - Other cards hidden
-   - Larger fonts and spacing
-   - Dedicated close button
+   - Larger fonts and spacing for better readability
+   - Wider column layout (160px/140px/100px/100px/110px/80px)
+   - Dedicated close button (✖)
+   - ESC key to exit
 
 4. Change Calculation:
-   - Date picker to select start date
-   - Defaults to 5 days before latest entry (or earliest if less data)
+   - Date picker to select start date (max: latest entry date)
+   - Defaults to 5th most recent entry (exactly 5 trading days)
    - Displays cumulative change from selected date to latest
-   - Shows number of days in compact badge
-   - Auto-recalculates on data changes
+   - Shows number of actual trading entries (not calendar days)
+   - Green badge for positive change, red for negative
+   - Auto-recalculates on data changes or date selection
+
+5. Pin/Star Feature:
+   - Star icon (☆/⭐) in card header
+   - Click to toggle pin status
+   - Pinned cards: gold filled star (⭐), appear at top
+   - Unpinned cards: gray outline star (☆), appear below
+   - Both groups sorted alphabetically
+   - Pin state persisted in localStorage
 
 ## Behaviors
 - Adding a Contract:
   - Trim whitespace; empty → ignored
   - Case-insensitive uniqueness check
-  - Show duplicate warning if exists
+  - Show duplicate warning if exists (2 second auto-dismiss)
   - Initialize with today's date and empty value
-  - Auto-calculate default date range
+  - Auto-calculate default date range (5 most recent entries)
+  - Sort cards (pinned first)
   
 - Excel/CSV Upload:
   - File name (without extension) becomes contract name
-  - Row 1: Headers (Date, Change)
+  - Expects 2-5 columns: Date, Change, [Open], [Close], [Volume]
+  - Row 1: Headers (Date, Change, Open, Close, Volume)
   - Row 2+: Data entries
   - Validates contract doesn't already exist
   - Handles Excel date serial numbers and string dates
-  - Shows success message with entry count
+  - Parses optional Open, Close, Volume columns
+  - Shows success message with emoji icon and entry count
+  - Auto-dismisses after 5 seconds
+  - Triggers immediate UI refresh with change detection
   
 - Adding an Entry:
-  - Validate number field (non-null)
+  - Validate required fields (date and change value)
   - Check for duplicate dates within card
+  - Optional fields: open, close, volume
   - Unshift entry to beginning (newest first)
   - Immediately persist to localStorage
   - Recalculate change metrics
+  - Sort cards after addition
+  
+- Editing an Entry:
+  - Click edit (✎) button to enter inline edit mode
+  - All fields become editable inputs
+  - Save (✓) to commit changes
+  - Cancel (✖) to discard changes
+  - Validates date uniqueness (excluding current entry)
+  - Re-sorts entries by date after save
+  - Recalculates change metrics
   
 - Deleting an Entry:
+  - Hover over entry to reveal delete button (−)
   - Remove by index
   - Persist to storage
   - Recalculate change metrics
@@ -105,18 +176,27 @@ LocalStorage Shape: { [contractName: string]: ChangeEntry[] }
   - Confirmation dialog with contract name
   - Removes entire card and all entries
   - Persists to storage
+  - Re-sorts remaining cards
+  
+- Pinning/Unpinning Cards:
+  - Click star (☆/⭐) to toggle pin status
+  - Auto-sorts cards (pinned first, then alphabetically)
+  - Visual feedback: gold star and background for pinned
+  - Persists pin state to localStorage v2.0 format
   
 - Change Calculation:
-  - Filters entries between selected date and latest date
+  - Selects 5th most recent entry as default start date
+  - Filters entries between selected date and latest date (inclusive)
   - Sums all change values in range
-  - Calculates number of days between dates
-  - Updates on any data change (add/delete entries, date picker change)
+  - Counts number of actual trading entries (not calendar days)
+  - Updates on any data change (add/delete/edit entries, date picker change)
   
 - Fullscreen Toggle:
-  - Expands single card to viewport
-  - Hides all other cards
-  - Larger UI elements
-  - ESC key to exit (optional)
+  - Expands single card to full viewport
+  - Hides all other cards (wrapper class: `expanding`)
+  - Larger UI elements and column widths
+  - ESC key to exit
+  - Dedicated close button (✖)
   
 - Persistence:
   - Load on component init
