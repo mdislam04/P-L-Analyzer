@@ -30,6 +30,7 @@ interface ChangeCard {
   selectedFromDate?: string; // Date picker for change calculation
   calculatedChange?: number; // Calculated change from selected date to latest
   daysCount?: number; // Number of days for which change is calculated
+  isPinned?: boolean; // Pin card to top
 }
 
 interface ChangeTrackData {
@@ -95,6 +96,9 @@ interface ChangeTrackData {
               <span class="days-badge">{{ card.daysCount || 0 }}d</span>
             </div>
             <div class="header-actions">
+              <button class="icon-btn pin" (click)="togglePin(card)" [class.pinned]="card.isPinned" [attr.aria-label]="card.isPinned ? 'Unpin card' : 'Pin card to top'">
+                {{ card.isPinned ? '⭐' : '☆' }}
+              </button>
               <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
               <button class="icon-btn delete-card" (click)="deleteCard(card)" aria-label="Delete card">🗑️</button>
               <button class="icon-btn fullscreen" (click)="toggleExpand(card)" [attr.aria-label]="card.expanded ? 'Exit full screen' : 'Full screen'">⛶</button>
@@ -204,6 +208,9 @@ interface ChangeTrackData {
     .icon-btn.add:hover { background:#43a047; }
     .icon-btn.fullscreen { background: rgba(255,255,255,0.15); color:#fff; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.25); }
     .icon-btn.fullscreen:hover { background: rgba(255,255,255,0.25); }
+    .icon-btn.pin { background: rgba(255,255,255,0.1); color:#aaa; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.2); transition: all 0.3s; }
+    .icon-btn.pin:hover { background: rgba(255,193,7,0.2); color:#ffc107; }
+    .icon-btn.pin.pinned { background: rgba(255,193,7,0.2); color:#ffc107; border-color:#ffc107; }
     .icon-btn.delete-card { background: #ff6e6e; color:#fff; width:38px; height:34px; font-size:0.9em; border:1px solid rgba(255,255,255,0.25); }
     .icon-btn.delete-card:hover { background: #f44336; }
     .icon-btn.close { background:#ff6e6e; color:#fff; width:38px; height:34px; font-size:1.1em; border:1px solid rgba(255,255,255,0.25); margin-right:68px; }
@@ -333,6 +340,8 @@ export class ChangeTrackComponent implements OnInit {
     this.loadDriveFileId();
     // Initialize calculations for all cards
     this.cards.forEach(card => this.initializeCardCalculation(card));
+    // Sort cards (pinned first)
+    this.sortCards();
   }
 
   trackByName(index: number, card: ChangeCard) { return card.name; }
@@ -507,6 +516,24 @@ export class ChangeTrackComponent implements OnInit {
     }
   }
 
+  togglePin(card: ChangeCard) {
+    card.isPinned = !card.isPinned;
+    this.sortCards();
+    this.saveToStorage();
+  }
+
+  sortCards() {
+    // Sort: pinned cards first (alphabetically), then unpinned cards (alphabetically)
+    this.cards.sort((a, b) => {
+      // Both pinned or both unpinned - sort alphabetically
+      if (a.isPinned === b.isPinned) {
+        return a.name.localeCompare(b.name);
+      }
+      // Pinned cards come first
+      return a.isPinned ? -1 : 1;
+    });
+  }
+
   deleteEntry(card: ChangeCard, index: number) {
     card.entries.splice(index, 1);
     this.saveToStorage();
@@ -669,17 +696,44 @@ export class ChangeTrackComponent implements OnInit {
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return;
-      const obj = JSON.parse(raw) as { [key: string]: ChangeEntry[] };
-      this.cards = Object.keys(obj).map(name => ({ name, entries: obj[name].sort((a,b) => b.date.localeCompare(a.date)), newEntryDate: this.getToday(), newEntryValue: null }));
+      const data = JSON.parse(raw);
+      
+      // Handle old format (just entries) and new format (with metadata)
+      if (data.version === '2.0') {
+        // New format with isPinned
+        this.cards = data.cards.map((cardData: any) => ({
+          name: cardData.name,
+          entries: cardData.entries.sort((a: ChangeEntry, b: ChangeEntry) => b.date.localeCompare(a.date)),
+          newEntryDate: this.getToday(),
+          newEntryValue: null,
+          isPinned: cardData.isPinned || false
+        }));
+      } else {
+        // Old format - migrate
+        const obj = data as { [key: string]: ChangeEntry[] };
+        this.cards = Object.keys(obj).map(name => ({
+          name,
+          entries: obj[name].sort((a, b) => b.date.localeCompare(a.date)),
+          newEntryDate: this.getToday(),
+          newEntryValue: null,
+          isPinned: false
+        }));
+      }
     } catch (e) { console.warn('Failed to load change track data', e); }
   }
 
   saveToStorage() {
     if (typeof window === 'undefined') return;
     try {
-      const obj: { [key: string]: ChangeEntry[] } = {};
-      for (const c of this.cards) { obj[c.name] = c.entries; }
-      localStorage.setItem(this.storageKey, JSON.stringify(obj));
+      const data = {
+        version: '2.0',
+        cards: this.cards.map(c => ({
+          name: c.name,
+          entries: c.entries,
+          isPinned: c.isPinned || false
+        }))
+      };
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
     } catch (e) { console.warn('Failed to save change track data', e); }
   }
 
