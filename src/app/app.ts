@@ -10,6 +10,7 @@ import { HelpComponent } from './help.component';
 import { ChangeTrackComponent } from './change-track.component';
 import { StockRadarComponent } from './stock-radar.component';
 import { GoogleDriveService } from './google-drive.service';
+import NoSleep from 'nosleep.js';
 
 
 
@@ -65,6 +66,15 @@ interface Contract {
           [class.active]="activeTab === 'help'"
           (click)="switchTab('help')">
           ❓ Help
+        </button>
+        
+        <!-- Screen Wake Lock Button -->
+        <button 
+          class="btn-wake-lock" 
+          [class.active]="isWakeLockActive"
+          (click)="toggleWakeLock()"
+          [title]="isWakeLockActive ? 'Screen will stay awake' : 'Enable screen wake lock'">
+          {{ isWakeLockActive ? '☀️ Screen Active' : '🌙 Keep Awake' }}
         </button>
         
         <!-- Google Drive Connect Button -->
@@ -478,6 +488,34 @@ interface Contract {
     .btn-connect-drive:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+    
+    .btn-wake-lock {
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    
+    .btn-wake-lock:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+    
+    .btn-wake-lock.active {
+      background: #ffc107;
+      color: #000;
+      border-color: #ffc107;
+    }
+    
+    .btn-wake-lock.active:hover {
+      background: #ffca28;
     }
 
     .drive-status {
@@ -980,12 +1018,19 @@ export class App {
   };
 
   isConnectingDrive = false;
+  
+  // Screen Wake Lock
+  private noSleep: NoSleep;
+  isWakeLockActive = false;
 
   constructor(
     private cdr: ChangeDetectorRef, 
     private zone: NgZone,
     public driveService: GoogleDriveService
-  ) {}
+  ) {
+    this.noSleep = new NoSleep();
+    this.loadWakeLockPreference();
+  }
 
   async connectGoogleDrive() {
     this.isConnectingDrive = true;
@@ -1003,6 +1048,44 @@ export class App {
   disconnectGoogleDrive() {
     if (confirm('Disconnect Google Drive? You can reconnect anytime.')) {
       this.driveService.disconnect();
+    }
+  }
+
+  toggleWakeLock() {
+    try {
+      if (this.isWakeLockActive) {
+        this.noSleep.disable();
+        this.isWakeLockActive = false;
+        this.saveWakeLockPreference(false);
+      } else {
+        this.noSleep.enable();
+        this.isWakeLockActive = true;
+        this.saveWakeLockPreference(true);
+      }
+    } catch (error) {
+      console.error('Wake lock error:', error);
+      alert('⚠️ Failed to toggle screen wake lock. Please try again.');
+    }
+  }
+
+  private loadWakeLockPreference() {
+    try {
+      const saved = localStorage.getItem('screenWakeLockEnabled');
+      if (saved === 'true') {
+        // Auto-enable wake lock if it was previously enabled
+        this.noSleep.enable();
+        this.isWakeLockActive = true;
+      }
+    } catch (error) {
+      console.error('Failed to load wake lock preference:', error);
+    }
+  }
+
+  private saveWakeLockPreference(enabled: boolean) {
+    try {
+      localStorage.setItem('screenWakeLockEnabled', enabled.toString());
+    } catch (error) {
+      console.error('Failed to save wake lock preference:', error);
     }
   }
 
