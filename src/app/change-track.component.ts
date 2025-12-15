@@ -112,12 +112,12 @@ interface ChangeTrackData {
           <div *ngIf="card.entries.length === 0" class="empty">No changes recorded yet.</div>
           <div class="entry-list-wrapper">
             <div *ngIf="card.entries.length > 0" class="entry-header">
-              <span class="header-label">Date</span>
-              <span class="header-label">Change</span>
-              <span class="header-label">Open</span>
-              <span class="header-label">Close</span>
-              <span class="header-label">Volume</span>
-              <span class="header-label">Actions</span>
+              <span class="header-label header-left">Date</span>
+              <span class="header-label header-left">Change</span>
+              <span class="header-label header-right">Open</span>
+              <span class="header-label header-right">Close</span>
+              <span class="header-label header-right">Volume</span>
+              <span class="header-label header-center">Actions</span>
             </div>
             <div class="entry-list">
               <div *ngFor="let e of card.entries; let i = index" class="entry-item" [class.editing]="e.isEditing">
@@ -127,13 +127,16 @@ interface ChangeTrackData {
                 <span class="value" [class.profit]="e.value >= 0" [class.loss]="e.value < 0">
                   {{ e.value >= 0 ? '+' : '-' }}₹{{ formatNumber(e.value) }}
                 </span>
-                <span class="price-value" *ngIf="e.open !== undefined">₹{{ formatNumber(e.open) }}</span>
-                <span class="price-value empty" *ngIf="e.open === undefined">-</span>
-                <span class="price-value" *ngIf="e.close !== undefined">₹{{ formatNumber(e.close) }}</span>
-                <span class="price-value empty" *ngIf="e.close === undefined">-</span>
+                <span class="price-value" [class.empty]="e.open === undefined">
+                  {{ e.open !== undefined ? '₹' + formatNumber(e.open) : '-' }}
+                </span>
+                <span class="price-value" [class.empty]="e.close === undefined">
+                  {{ e.close !== undefined ? '₹' + formatNumber(e.close) : '-' }}
+                </span>
                 <span class="volume-wrapper">
-                  <span class="volume-value" *ngIf="e.volume !== undefined">{{ formatVolume(e.volume) }}</span>
-                  <span class="volume-value empty" *ngIf="e.volume === undefined">-</span>
+                  <span class="volume-value" [class.empty]="e.volume === undefined">
+                    {{ e.volume !== undefined ? formatVolume(e.volume) : '-' }}
+                  </span>
                   <div *ngIf="e.volume !== undefined" class="tooltip-bubble">
                     <strong>Volume:</strong> {{ e.volume.toLocaleString('en-IN') }}
                   </div>
@@ -224,6 +227,9 @@ interface ChangeTrackData {
     .entry-list-wrapper { position:relative; overflow:visible; }
     .entry-header { display:grid; grid-template-columns: 100px 120px 85px 85px 90px 80px; gap:8px; padding:6px 0 8px 0; border-bottom:2px solid rgba(255,193,7,0.3); margin-bottom:4px; }
     .header-label { font-size:0.65em; font-weight:700; color:#ffc107; text-transform:uppercase; letter-spacing:0.5px; }
+    .header-label.header-left { text-align:left; }
+    .header-label.header-right { text-align:right; }
+    .header-label.header-center { text-align:center; }
     .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; overflow-x:visible; padding-right:4px; }
     .entry-list::-webkit-scrollbar { width:8px; }
     .entry-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.05); border-radius:4px; }
@@ -256,7 +262,7 @@ interface ChangeTrackData {
     .price-value { font-size:0.75em; color:#ccc; text-align:right; }
     .price-value.empty { color:#555; }
     .volume-wrapper { position:relative; display:inline-block; cursor:help; text-align:right; }
-    .volume-value { font-size:0.75em; color:#ffc107; font-weight:600; }
+    .volume-value { font-size:0.75em; color:#fff; font-weight:600; }
     .volume-value.empty { color:#555; }
     .volume-wrapper:hover .tooltip-bubble { display:block; }
     .tooltip-bubble { display:none; position:absolute; background:rgba(0,0,0,0.9); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.75em; z-index:99999; pointer-events:none; white-space:nowrap; margin-left:15px; margin-top:-30px; right:0; }
