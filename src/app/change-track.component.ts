@@ -111,19 +111,31 @@ interface ChangeTrackData {
           <div *ngIf="card.duplicateDate" class="warn small">Date already recorded.</div>
           <div *ngIf="card.entries.length === 0" class="empty">No changes recorded yet.</div>
           <div class="entry-list-wrapper">
+            <div *ngIf="card.entries.length > 0" class="entry-header">
+              <span class="header-label">Date</span>
+              <span class="header-label">Change</span>
+              <span class="header-label">Open</span>
+              <span class="header-label">Close</span>
+              <span class="header-label">Volume</span>
+              <span class="header-label">Actions</span>
+            </div>
             <div class="entry-list">
               <div *ngFor="let e of card.entries; let i = index" class="entry-item" [class.editing]="e.isEditing">
               <!-- View Mode -->
               <ng-container *ngIf="!e.isEditing">
                 <span class="date">{{ formatDisplayDate(e.date) }}</span>
-                <span class="value-wrapper">
-                  <span class="value" [class.profit]="e.value >= 0" [class.loss]="e.value < 0">
-                    {{ e.value >= 0 ? '+' : '-' }}₹{{ formatNumber(e.value) }}
-                  </span>
-                  <div *ngIf="e.open !== undefined || e.close !== undefined || e.volume !== undefined" class="tooltip-bubble">
-                    <div class="tooltip-row" *ngIf="e.open !== undefined"><strong>Open:</strong> ₹{{ formatNumber(e.open) }}</div>
-                    <div class="tooltip-row" *ngIf="e.close !== undefined"><strong>Close:</strong> ₹{{ formatNumber(e.close) }}</div>
-                    <div class="tooltip-row" *ngIf="e.volume !== undefined"><strong>Volume:</strong> {{ e.volume.toLocaleString('en-IN') }}</div>
+                <span class="value" [class.profit]="e.value >= 0" [class.loss]="e.value < 0">
+                  {{ e.value >= 0 ? '+' : '-' }}₹{{ formatNumber(e.value) }}
+                </span>
+                <span class="price-value" *ngIf="e.open !== undefined">₹{{ formatNumber(e.open) }}</span>
+                <span class="price-value empty" *ngIf="e.open === undefined">-</span>
+                <span class="price-value" *ngIf="e.close !== undefined">₹{{ formatNumber(e.close) }}</span>
+                <span class="price-value empty" *ngIf="e.close === undefined">-</span>
+                <span class="volume-wrapper">
+                  <span class="volume-value" *ngIf="e.volume !== undefined">{{ formatVolume(e.volume) }}</span>
+                  <span class="volume-value empty" *ngIf="e.volume === undefined">-</span>
+                  <div *ngIf="e.volume !== undefined" class="tooltip-bubble">
+                    <strong>Volume:</strong> {{ e.volume.toLocaleString('en-IN') }}
                   </div>
                 </span>
                 <div class="entry-actions">
@@ -210,6 +222,8 @@ interface ChangeTrackData {
     .edit-input-small { font-size:0.75em; }
     .empty { font-size:0.7em; color:#777; padding:4px 0; }
     .entry-list-wrapper { position:relative; overflow:visible; }
+    .entry-header { display:grid; grid-template-columns: 100px 120px 85px 85px 90px 80px; gap:8px; padding:6px 0 8px 0; border-bottom:2px solid rgba(255,193,7,0.3); margin-bottom:4px; }
+    .header-label { font-size:0.65em; font-weight:700; color:#ffc107; text-transform:uppercase; letter-spacing:0.5px; }
     .entry-list { display:flex; flex-direction:column; gap:6px; max-height:360px; overflow-y:auto; overflow-x:visible; padding-right:4px; }
     .entry-list::-webkit-scrollbar { width:8px; }
     .entry-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.05); border-radius:4px; }
@@ -223,23 +237,29 @@ interface ChangeTrackData {
     .ct-card.expanded .entry-list { max-height: none; }
     .ct-card.expanded { padding:40px 56px; }
     .ct-card.expanded .card-title { font-size:1.2em; }
-    .ct-card.expanded .entry-item { padding:12px 4px; grid-template-columns: 160px 1fr 54px; }
+    .ct-card.expanded .entry-item { padding:12px 4px; grid-template-columns: 160px 140px 100px 100px 110px 80px; }
+    .ct-card.expanded .entry-header { grid-template-columns: 160px 140px 100px 100px 110px 80px; padding:8px 0 10px 0; }
+    .ct-card.expanded .header-label { font-size:0.75em; }
     .ct-card.expanded .value { font-size:1em; }
     .ct-card.expanded .date { font-size:0.75em; }
+    .ct-card.expanded .price-value { font-size:0.85em; }
+    .ct-card.expanded .volume-value { font-size:0.85em; }
     .ct-card.expanded .entry-add-row input { font-size:0.9em; }
     .ct-card.expanded .entry-add-row input { font-size:0.9em; }
     .cards-wrapper.expanding .ct-card:not(.expanded) { display:none; }
-    .entry-item { display:grid; grid-template-columns: 100px 1fr 80px; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); position:relative; }
+    .entry-item { display:grid; grid-template-columns: 100px 120px 85px 85px 90px 80px; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06); position:relative; }
     .entry-item:last-child { border-bottom:none; }
     .date { font-size:0.7em; color:#bbb; }
     .value { font-size:0.85em; font-weight:600; text-align:left; }
     .value.profit { color:#4caf50; }
     .value.loss { color:#ff6e6e; }
-    .value-wrapper { position:relative; display:inline-block; cursor:help; }
-    .value-wrapper:hover .tooltip-bubble { display:block; }
-    .tooltip-bubble { display:none; position:absolute; background:rgba(0,0,0,0.9); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.75em; z-index:99999; pointer-events:none; white-space:nowrap; margin-left:15px; margin-top:-30px; }
-    .tooltip-row { margin:3px 0; }
-    .tooltip-row strong { color:#ffc107; margin-right:8px; }
+    .price-value { font-size:0.75em; color:#ccc; text-align:right; }
+    .price-value.empty { color:#555; }
+    .volume-wrapper { position:relative; display:inline-block; cursor:help; text-align:right; }
+    .volume-value { font-size:0.75em; color:#ffc107; font-weight:600; }
+    .volume-value.empty { color:#555; }
+    .volume-wrapper:hover .tooltip-bubble { display:block; }
+    .tooltip-bubble { display:none; position:absolute; background:rgba(0,0,0,0.9); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.75em; z-index:99999; pointer-events:none; white-space:nowrap; margin-left:15px; margin-top:-30px; right:0; }
     .footer-note { font-size:0.6em; color:#888; text-align:center; margin-top:4px; }
     code { background: rgba(0,0,0,0.3); padding:2px 6px; border-radius:6px; font-size:0.85em; }
     
@@ -808,5 +828,23 @@ export class ChangeTrackComponent implements OnInit {
       this.statusMessage = '';
       this.cdr.detectChanges();
     }, 5000);
+  }
+
+  // Format volume in Indian number system (Lakhs/Crores)
+  formatVolume(volume: number): string {
+    const absVolume = Math.abs(volume);
+    
+    if (absVolume >= 10000000) {
+      // Crores (1 Cr = 10,000,000)
+      return (volume / 10000000).toFixed(2) + ' Cr';
+    } else if (absVolume >= 100000) {
+      // Lakhs (1 L = 100,000)
+      return (volume / 100000).toFixed(2) + ' L';
+    } else if (absVolume >= 1000) {
+      // Thousands
+      return (volume / 1000).toFixed(2) + ' K';
+    } else {
+      return volume.toLocaleString('en-IN');
+    }
   }
 }
