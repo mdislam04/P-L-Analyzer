@@ -30,6 +30,7 @@ interface ChangeCard {
   selectedFromDate?: string; // Date picker for change calculation
   calculatedChange?: number; // Calculated change from selected date to latest
   daysCount?: number; // Number of days for which change is calculated
+  percentageChange?: number; // Percentage change based on first/last day close prices
   isPinned?: boolean; // Pin card to top
 }
 
@@ -82,18 +83,32 @@ interface ChangeTrackData {
         <div *ngFor="let card of cards; trackBy: trackByName" class="ct-card" [class.expanded]="card.expanded">
           <div class="card-header">
             <div class="card-title">{{ card.name }}</div>
-            <div class="change-calculator">
-              <input 
-                type="date" 
-                [(ngModel)]="card.selectedFromDate" 
-                (ngModelChange)="calculateChange(card)"
-                [max]="getLatestDate(card)"
-                class="date-picker-small"
-              />
-              <span class="calculated-change" [class.profit]="(card.calculatedChange || 0) >= 0" [class.loss]="(card.calculatedChange || 0) < 0">
-                {{ (card.calculatedChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(card.calculatedChange || 0) }}
-              </span>
-              <span class="days-badge">{{ card.daysCount || 0 }}d</span>
+            <div class="change-widget">
+              <div class="widget-left">
+                <div class="date-picker-wrapper">
+                  <button class="date-picker-icon" (click)="openDatePicker(card)" title="Select date">📅</button>
+                  <input 
+                    type="date" 
+                    [(ngModel)]="card.selectedFromDate" 
+                    (ngModelChange)="calculateChange(card)"
+                    [max]="getLatestDate(card)"
+                    class="date-picker-hidden"
+                    #datePicker
+                  />
+                </div>
+                <button class="spinner-btn" (click)="decrementDays(card)" [disabled]="(card.daysCount || 0) <= 1">◄</button>
+                <span class="days-display">{{ card.daysCount || 0 }} Days</span>
+                <button class="spinner-btn" (click)="incrementDays(card)" [disabled]="(card.daysCount || 0) >= card.entries.length">►</button>
+              </div>
+              <div class="widget-divider"></div>
+              <div class="widget-right">
+                <div class="change-value" [class.profit]="(card.calculatedChange || 0) >= 0" [class.loss]="(card.calculatedChange || 0) < 0">
+                  {{ (card.calculatedChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(card.calculatedChange || 0) }}
+                </div>
+                <div class="change-percent" *ngIf="card.percentageChange !== 0" [class.profit]="(card.percentageChange || 0) >= 0" [class.loss]="(card.percentageChange || 0) < 0">
+                  {{ (card.percentageChange || 0) >= 0 ? '↗' : '↘' }} {{ (card.percentageChange || 0) >= 0 ? '+' : '' }}{{ (card.percentageChange || 0).toFixed(2) }}%
+                </div>
+              </div>
             </div>
             <div class="header-actions">
               <button class="icon-btn pin" (click)="togglePin(card)" [class.pinned]="card.isPinned" [attr.aria-label]="card.isPinned ? 'Unpin card' : 'Pin card to top'">
@@ -105,6 +120,7 @@ interface ChangeTrackData {
               <button *ngIf="card.expanded" class="icon-btn close" (click)="toggleExpand(card)" aria-label="Close fullscreen">✖</button>
             </div>
           </div>
+          
           <div class="entry-add-row">
             <input type="date" [(ngModel)]="card.newEntryDate" class="input-date" />
             <input type="number" [(ngModel)]="card.newEntryValue" placeholder="Change" class="input-change" />
@@ -188,13 +204,24 @@ interface ChangeTrackData {
     .card-header { display:flex; align-items:center; gap:10px; justify-content: space-between; }
     .header-actions { display:flex; gap:6px; align-items:center; flex-shrink: 0; }
     .card-title { font-size:0.9em; font-weight:600; letter-spacing:1px; color:#ffc107; white-space: nowrap; flex-shrink: 0; }
-    .change-calculator { display:flex; align-items:center; gap:6px; flex-wrap: nowrap; flex: 1; justify-content: flex-end; margin: 0 10px; }
-    .date-picker-small { padding:3px 6px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,193,7,0.3); border-radius:6px; color:#fff; font-size:0.65em; cursor:pointer; min-width: 90px; }
-    .date-picker-small::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; width: 12px; height: 12px; }
-    .calculated-change { font-size:0.8em; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(0,0,0,0.3); white-space: nowrap; min-width: 60px; text-align: center; }
-    .calculated-change.profit { color:#4caf50; }
-    .calculated-change.loss { color:#f44336; }
-    .days-badge { font-size:0.75em; font-weight:700; padding:2px 6px; border-radius:50%; color:#ffc107; border:1.5px solid rgba(255, 255, 255, 0.7); white-space: nowrap; min-width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
+    .change-widget { display:flex; align-items:center; gap:0; flex-wrap: nowrap; flex: 1; justify-content: flex-end; margin: 0 10px; background: rgba(255,255,255,0.05); border-radius: 20px; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.1); }
+    .widget-left { display:flex; align-items:center; gap:8px; padding-right: 12px; }
+    .date-picker-wrapper { position: relative; display: flex; align-items: center; }
+    .date-picker-icon { background: rgba(255,193,7,0.2); border: 1px solid rgba(255,193,7,0.4); color: #ffc107; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 1em; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+    .date-picker-icon:hover { background: rgba(255,193,7,0.3); transform: scale(1.05); }
+    .date-picker-hidden { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+    .spinner-btn { background: rgba(255,193,7,0.2); border: 1px solid rgba(255,193,7,0.4); color: #ffc107; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 700; transition: all 0.2s; }
+    .spinner-btn:hover:not(:disabled) { background: rgba(255,193,7,0.3); transform: scale(1.05); }
+    .spinner-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .days-display { font-size: 0.75em; font-weight: 600; color: #ffc107; white-space: nowrap; min-width: 50px; text-align: center; }
+    .widget-divider { width: 1px; height: 30px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.3), transparent); }
+    .widget-right { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; }
+    .change-value { font-size: 0.85em; font-weight: 700; white-space: nowrap; }
+    .change-value.profit { color: #4caf50; }
+    .change-value.loss { color: #f44336; }
+    .change-percent { font-size: 0.7em; font-weight: 600; white-space: nowrap; opacity: 0.9; }
+    .change-percent.profit { color: #4caf50; }
+    .change-percent.loss { color: #f44336; }
     .entry-add-row { display:grid; grid-template-columns: 110px 120px 85px 85px 85px; gap:6px; align-items:center; z-index:1; margin-top:4px; }
     .warn.small { font-size:0.65em; margin-top:-4px; }
     .entry-add-row input { padding:6px 8px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.8em; width:100%; box-sizing:border-box; }
@@ -522,6 +549,49 @@ export class ChangeTrackComponent implements OnInit {
     this.saveToStorage();
   }
 
+  incrementDays(card: ChangeCard) {
+    if (!card.entries || card.entries.length === 0) return;
+    
+    const currentDays = card.daysCount || 0;
+    if (currentDays >= card.entries.length) return; // Can't go beyond all entries
+    
+    // Move the selected from date one day earlier
+    const sortedEntries = [...card.entries].sort((a, b) => a.date.localeCompare(b.date));
+    const currentIndex = sortedEntries.findIndex(e => e.date === card.selectedFromDate);
+    
+    if (currentIndex > 0) {
+      card.selectedFromDate = sortedEntries[currentIndex - 1].date;
+      this.calculateChange(card);
+      this.saveToStorage();
+    }
+  }
+
+  openDatePicker(card: ChangeCard) {
+    // Trigger the hidden date input programmatically
+    const dateInputs = document.querySelectorAll('.date-picker-hidden');
+    const cardIndex = this.cards.indexOf(card);
+    if (dateInputs[cardIndex]) {
+      (dateInputs[cardIndex] as HTMLInputElement).showPicker?.();
+    }
+  }
+
+  decrementDays(card: ChangeCard) {
+    if (!card.entries || card.entries.length === 0) return;
+    
+    const currentDays = card.daysCount || 0;
+    if (currentDays <= 1) return; // Can't go below 1 day
+    
+    // Move the selected from date one day later
+    const sortedEntries = [...card.entries].sort((a, b) => a.date.localeCompare(b.date));
+    const currentIndex = sortedEntries.findIndex(e => e.date === card.selectedFromDate);
+    
+    if (currentIndex < sortedEntries.length - 1) {
+      card.selectedFromDate = sortedEntries[currentIndex + 1].date;
+      this.calculateChange(card);
+      this.saveToStorage();
+    }
+  }
+
   sortCards() {
     // Sort: pinned cards first (alphabetically), then unpinned cards (alphabetically)
     this.cards.sort((a, b) => {
@@ -651,6 +721,7 @@ export class ChangeTrackComponent implements OnInit {
     if (!card.entries || card.entries.length === 0) {
       card.calculatedChange = 0;
       card.daysCount = 0;
+      card.percentageChange = 0;
       return;
     }
 
@@ -660,7 +731,7 @@ export class ChangeTrackComponent implements OnInit {
     // Filter entries between fromDate and toDate (inclusive)
     const relevantEntries = card.entries.filter(e => 
       e.date >= fromDate && e.date <= toDate
-    );
+    ).sort((a, b) => a.date.localeCompare(b.date)); // Sort by date ascending
 
     // Sum up all changes
     const totalChange = relevantEntries.reduce((sum, entry) => sum + entry.value, 0);
@@ -668,6 +739,23 @@ export class ChangeTrackComponent implements OnInit {
 
     // Count number of trading days (entries) in the range
     card.daysCount = relevantEntries.length;
+
+    // Calculate percentage change based on first and last day close prices
+    if (relevantEntries.length > 0) {
+      const firstEntry = relevantEntries[0];
+      const lastEntry = relevantEntries[relevantEntries.length - 1];
+      
+      // Use close prices if available, otherwise fall back to a calculation
+      if (firstEntry.close !== undefined && lastEntry.close !== undefined && firstEntry.close !== 0) {
+        const priceChange = lastEntry.close - firstEntry.close;
+        card.percentageChange = (priceChange / firstEntry.close) * 100;
+      } else {
+        // Fallback: estimate based on total change and last close price
+        card.percentageChange = 0;
+      }
+    } else {
+      card.percentageChange = 0;
+    }
   }
 
   // Calculate number of days between two dates
