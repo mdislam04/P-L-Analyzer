@@ -430,6 +430,9 @@ interface Contract {
           <a href="https://claude.ai/public/artifacts/83aec5af-de25-4fe1-a249-37e58c35df33" target="_blank" rel="noopener noreferrer" class="footer-link">
             📉 Big Losses
           </a>
+          <a href="https://claude.ai/public/artifacts/f8f5196c-3a9f-48ac-b61b-5e5eaf4774f2" target="_blank" rel="noopener noreferrer" class="footer-link">
+            📊 P & L Breakup
+          </a>
         </div>
       </div>
     </footer>
