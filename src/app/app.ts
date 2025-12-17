@@ -68,14 +68,18 @@ interface Contract {
           ❓ Help
         </button>
         
-        <!-- Screen Wake Lock Button -->
-        <button 
-          class="btn-wake-lock" 
-          [class.active]="isWakeLockActive"
-          (click)="toggleWakeLock()"
-          [title]="isWakeLockActive ? 'Screen will stay awake' : 'Enable screen wake lock'">
-          {{ isWakeLockActive ? '☀️ Screen Active' : '🌙 Keep Awake' }}
-        </button>
+        <!-- Screen Wake Lock Toggle -->
+        <div class="wake-lock-toggle">
+          <label class="toggle-switch" title="Keep screen awake">
+            <input 
+              type="checkbox" 
+              [(ngModel)]="isWakeLockActive"
+              (change)="toggleWakeLock()"
+            />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">{{ isWakeLockActive ? '☀️' : '🌙' }}</span>
+          </label>
+        </div>
         
         <!-- Google Drive Connect Button -->
         <div class="drive-connect-section">
@@ -505,32 +509,72 @@ interface Contract {
       cursor: not-allowed;
     }
     
-    .btn-wake-lock {
-      padding: 10px 20px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
+    .wake-lock-toggle {
+      display: flex;
+      align-items: center;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       cursor: pointer;
-      transition: all 0.3s;
-      white-space: nowrap;
+      user-select: none;
     }
-    
-    .btn-wake-lock:hover {
+
+    .toggle-switch input[type="checkbox"] {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .toggle-slider {
+      position: relative;
+      width: 44px;
+      height: 24px;
       background: rgba(255, 255, 255, 0.2);
-      transform: translateY(-2px);
+      border-radius: 24px;
+      transition: all 0.3s;
+      border: 1px solid rgba(255, 255, 255, 0.3);
     }
-    
-    .btn-wake-lock.active {
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 2px;
+      background: #fff;
+      border-radius: 50%;
+      transition: all 0.3s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
       background: #ffc107;
-      color: #000;
       border-color: #ffc107;
     }
-    
-    .btn-wake-lock.active:hover {
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+      background: #000;
+    }
+
+    .toggle-switch:hover .toggle-slider {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .toggle-switch input:checked:hover + .toggle-slider {
       background: #ffca28;
+    }
+
+    .toggle-label {
+      font-size: 18px;
+      line-height: 1;
+      transition: all 0.3s;
     }
 
     .drive-status {
