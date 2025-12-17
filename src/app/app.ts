@@ -414,6 +414,21 @@ interface Contract {
         <app-help></app-help>
       </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+      <div class="footer-content">
+        <div class="footer-section">
+          <span class="footer-label">Quick Links:</span>
+          <a href="https://claude.ai/public/artifacts/fc830a0c-7e32-47c4-b3f7-61b45bbb859a" target="_blank" rel="noopener noreferrer" class="footer-link">
+            📊 Nov 24 - Dec 25 Performance
+          </a>
+          <a href="https://claude.ai/public/artifacts/83aec5af-de25-4fe1-a249-37e58c35df33" target="_blank" rel="noopener noreferrer" class="footer-link">
+            📉 Big Losses
+          </a>
+        </div>
+      </div>
+    </footer>
   `,
   styles: [`
     * {
@@ -543,6 +558,69 @@ interface Contract {
 
     .btn-disconnect-drive:hover {
       background: rgba(255, 255, 255, 0.2);
+    }
+
+    .site-footer {
+      margin-top: 60px;
+      padding: 25px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+    }
+
+    .footer-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .footer-section {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .footer-label {
+      font-size: 0.9em;
+      color: #ffc107;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .footer-link {
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.85em;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      transition: all 0.3s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .footer-link:hover {
+      background: rgba(255, 193, 7, 0.2);
+      border-color: #ffc107;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+    }
+
+    .footer-link:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      .footer-section {
+        flex-direction: column;
+        gap: 12px;
+      }
     }
 
     .input-section {
