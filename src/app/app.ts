@@ -424,8 +424,8 @@ interface Contract {
       <div class="footer-content">
         <!-- Clock Widget -->
         <div class="clock-widget">
-          <div class="clock-time">{{ currentTime }}</div>
-          <div class="clock-date">{{ currentDate }}</div>
+          <div class="clock-time">{{ currentTime() }}</div>
+          <div class="clock-date">{{ currentDate() }}</div>
         </div>
         
         <!-- Quick Links -->
@@ -1198,12 +1198,12 @@ export class App implements OnDestroy {
   isWakeLockActive = false;
 
   // Clock state
-  currentTime: string = '';
-  currentDate: string = '';
+  currentTime = signal('');
+  currentDate = signal('');
   private clockInterval: any;
 
   constructor(
-    private cdr: ChangeDetectorRef, 
+    private cdr: ChangeDetectorRef,
     private zone: NgZone,
     public driveService: GoogleDriveService
   ) {
@@ -1219,11 +1219,12 @@ export class App implements OnDestroy {
   }
 
   private initializeClock() {
+    // Initialize clock immediately
     this.updateClock();
+    
+    // Update every second
     this.clockInterval = setInterval(() => {
-      this.zone.run(() => {
-        this.updateClock();
-      });
+      this.updateClock();
     }, 1000);
   }
 
@@ -1231,20 +1232,20 @@ export class App implements OnDestroy {
     const now = new Date();
     
     // Format time (HH:MM:SS)
-    this.currentTime = now.toLocaleTimeString('en-US', {
+    this.currentTime.set(now.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
       hour12: true
-    });
+    }));
     
     // Format date (Day, Month DD, YYYY)
-    this.currentDate = now.toLocaleDateString('en-US', {
+    this.currentDate.set(now.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
       year: 'numeric'
-    });
+    }));
   }
 
   async connectGoogleDrive() {
