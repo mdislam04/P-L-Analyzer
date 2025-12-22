@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectorRef, NgZone } from '@angular/core';
+import { Component, signal, ChangeDetectorRef, NgZone, OnDestroy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -422,6 +422,13 @@ interface Contract {
     <!-- Footer -->
     <footer class="site-footer">
       <div class="footer-content">
+        <!-- Clock Widget -->
+        <div class="clock-widget">
+          <div class="clock-time">{{ currentTime }}</div>
+          <div class="clock-date">{{ currentDate }}</div>
+        </div>
+        
+        <!-- Quick Links -->
         <div class="footer-section">
           <span class="footer-label">Quick Links:</span>
           <a href="https://claude.ai/public/artifacts/fc830a0c-7e32-47c4-b3f7-61b45bbb859a" target="_blank" rel="noopener noreferrer" class="footer-link">
@@ -619,8 +626,37 @@ interface Contract {
       max-width: 1400px;
       margin: 0 auto;
       display: flex;
-      justify-content: center;
+      justify-content: space-between;
       align-items: center;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+
+    .clock-widget {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 10px 20px;
+      background: rgba(255, 193, 7, 0.1);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      border-radius: 10px;
+      min-width: 280px;
+    }
+
+    .clock-time {
+      font-size: 1.8em;
+      font-weight: 700;
+      color: #ffc107;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      line-height: 1.2;
+    }
+
+    .clock-date {
+      font-size: 0.85em;
+      color: #aaa;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
     }
 
     .footer-section {
@@ -628,7 +664,8 @@ interface Contract {
       align-items: center;
       gap: 20px;
       flex-wrap: wrap;
-      justify-content: center;
+      flex: 1;
+      justify-content: flex-end;
     }
 
     .footer-label {
@@ -664,9 +701,21 @@ interface Contract {
     }
 
     @media (max-width: 768px) {
+      .footer-content {
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .clock-widget {
+        align-items: center;
+        width: 100%;
+      }
+
       .footer-section {
         flex-direction: column;
         gap: 12px;
+        justify-content: center;
+        width: 100%;
       }
     }
 
@@ -1122,7 +1171,7 @@ interface Contract {
   `]
 })
 
-export class App {
+export class App implements OnDestroy {
   protected readonly title = signal('trading-dashboard');
   Math = Math;
   activeTab: 'input' | 'dashboard' | 'v2' | 'change-track' | 'stock-radar' | 'help' = 'input';
@@ -1148,6 +1197,11 @@ export class App {
   private noSleep: NoSleep;
   isWakeLockActive = false;
 
+  // Clock state
+  currentTime: string = '';
+  currentDate: string = '';
+  private clockInterval: any;
+
   constructor(
     private cdr: ChangeDetectorRef, 
     private zone: NgZone,
@@ -1155,6 +1209,42 @@ export class App {
   ) {
     this.noSleep = new NoSleep();
     this.loadWakeLockPreference();
+    this.initializeClock();
+  }
+
+  ngOnDestroy() {
+    if (this.clockInterval) {
+      clearInterval(this.clockInterval);
+    }
+  }
+
+  private initializeClock() {
+    this.updateClock();
+    this.clockInterval = setInterval(() => {
+      this.zone.run(() => {
+        this.updateClock();
+      });
+    }, 1000);
+  }
+
+  private updateClock() {
+    const now = new Date();
+    
+    // Format time (HH:MM:SS)
+    this.currentTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    
+    // Format date (Day, Month DD, YYYY)
+    this.currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
   }
 
   async connectGoogleDrive() {
