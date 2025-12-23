@@ -19,6 +19,8 @@ export interface GoogleDriveFile {
 })
 export class GoogleDriveService {
   private readonly STORAGE_KEY = 'googleDriveConfig';
+  private readonly FOLDER_NAME = 'trading-tracker';
+  private folderIdCache: string | null = null;
   private config: GoogleDriveConfig = {
     accessToken: null,
     expiresAt: null
@@ -85,6 +87,7 @@ export class GoogleDriveService {
       accessToken: null,
       expiresAt: null
     };
+    this.folderIdCache = null; // Clear folder cache on disconnect
     this.saveConfig();
   }
 
@@ -108,6 +111,68 @@ export class GoogleDriveService {
   }
 
   /**
+   * Get or create the trading-tracker folder
+   */
+  private async ensureFolder(): Promise<string> {
+    // Return cached folder ID if available
+    if (this.folderIdCache) {
+      return this.folderIdCache;
+    }
+
+    const token = this.config.accessToken;
+    if (!token) {
+      throw new Error('Not authenticated with Google Drive');
+    }
+
+    // Search for existing folder
+    const query = encodeURIComponent(`name='${this.FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`;
+
+    const searchResponse = await fetch(searchUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!searchResponse.ok) {
+      throw new Error(`Failed to search for folder: ${searchResponse.statusText}`);
+    }
+
+    const searchData = await searchResponse.json();
+    
+    // Folder exists, cache and return its ID
+    if (searchData.files && searchData.files.length > 0) {
+      const folderId = searchData.files[0].id;
+      this.folderIdCache = folderId;
+      return folderId;
+    }
+
+    // Create new folder
+    const metadata = {
+      name: this.FOLDER_NAME,
+      mimeType: 'application/vnd.google-apps.folder'
+    };
+
+    const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(metadata)
+    });
+
+    if (!createResponse.ok) {
+      throw new Error(`Failed to create folder: ${createResponse.statusText}`);
+    }
+
+    const folderData = await createResponse.json();
+    const folderId = folderData.id;
+    this.folderIdCache = folderId;
+    return folderId;
+  }
+
+  /**
    * Search for a file by name in Google Drive
    */
   async searchFile(fileName: string): Promise<GoogleDriveFile | null> {
@@ -116,7 +181,11 @@ export class GoogleDriveService {
       throw new Error('Not authenticated with Google Drive');
     }
 
-    const query = encodeURIComponent(`name='${fileName}' and trashed=false`);
+    // Ensure folder exists and get its ID
+    const folderId = await this.ensureFolder();
+
+    // Search within the trading-tracker folder
+    const query = encodeURIComponent(`name='${fileName}' and '${folderId}' in parents and trashed=false`);
     const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`;
 
     const response = await fetch(url, {
@@ -146,9 +215,13 @@ export class GoogleDriveService {
       throw new Error('Not authenticated with Google Drive');
     }
 
+    // Ensure folder exists and get its ID
+    const folderId = await this.ensureFolder();
+
     const metadata = {
       name: fileName,
-      mimeType: 'application/json'
+      mimeType: 'application/json',
+      parents: [folderId]
     };
 
     const formData = new FormData();
@@ -190,6 +263,10 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
+      // Parse error response for better error messages
+      if (response.status === 404) {
+        throw new Error('File not found (404)');
+      }
       throw new Error(`Failed to update file: ${response.statusText}`);
     }
   }
@@ -210,6 +287,10 @@ export class GoogleDriveService {
     });
 
     if (!response.ok) {
+      // Parse error response for better error messages
+      if (response.status === 404) {
+        throw new Error('File not found (404)');
+      }
       throw new Error(`Failed to download file: ${response.statusText}`);
     }
 

@@ -390,7 +390,20 @@ export class StockRadarComponent implements OnInit {
         this.showSuccessMessage('✅ Synced to Google Drive!');
       }
     } catch (error) {
-      throw error;
+      // If file was deleted (404), clear cache and create new file
+      if ((error as any).message?.includes('404') || (error as any).message?.includes('not found')) {
+        console.warn('File not found during update, creating new file');
+        this.driveFileId = null;
+        this.saveDriveFileId();
+        
+        // Create new file
+        const fileId = await this.driveService.createFile(this.driveFileName, data);
+        this.driveFileId = fileId;
+        this.saveDriveFileId();
+        this.showSuccessMessage('✅ File recreated and synced to Google Drive!');
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -422,7 +435,22 @@ export class StockRadarComponent implements OnInit {
 
       this.showSuccessMessage('✅ Data restored from Google Drive!');
     } catch (error) {
-      throw error;
+      // If file was deleted (404), recreate it with current data
+      if ((error as any).message?.includes('404') || (error as any).message?.includes('not found')) {
+        console.warn('File not found on Drive, recreating with local data');
+        this.driveFileId = null;
+        this.saveDriveFileId();
+        
+        // If we have local data, save it to recreate the file
+        if (this.stockCards.length > 0) {
+          await this.saveToGoogleDrive();
+          this.showSuccessMessage('✅ File recreated on Google Drive with local data');
+        } else {
+          this.showErrorMessage('ℹ️ No data to sync - file was deleted');
+        }
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -457,9 +485,12 @@ export class StockRadarComponent implements OnInit {
    * Save Drive file ID to localStorage
    */
   private saveDriveFileId(): void {
-    if (!this.driveFileId) return;
     try {
-      localStorage.setItem('stockRadarDriveFileId', this.driveFileId);
+      if (this.driveFileId) {
+        localStorage.setItem('stockRadarDriveFileId', this.driveFileId);
+      } else {
+        localStorage.removeItem('stockRadarDriveFileId');
+      }
     } catch (e) {
       console.warn('Failed to save Drive file ID', e);
     }

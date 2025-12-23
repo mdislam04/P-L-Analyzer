@@ -442,8 +442,16 @@ export class DashboardV2Component implements AfterViewInit, OnChanges, OnDestroy
       
       this.showSuccessMessage(`✅ Loaded ${monthOption.label} data from Drive`);
     } catch (error) {
-      console.error('Failed to load month data:', error);
-      this.showErrorMessage('❌ Failed to load data: ' + (error as Error).message);
+      // If file was deleted (404), remove it from available months
+      if ((error as any).message?.includes('404') || (error as any).message?.includes('not found')) {
+        console.warn('File not found on Drive, removing from list');
+        this.availableMonths = this.availableMonths.filter(m => m.value !== this.selectedMonth);
+        this.selectedMonth = '';
+        this.showErrorMessage('❌ File was deleted from Drive. Please sync current data to recreate.');
+      } else {
+        console.error('Failed to load month data:', error);
+        this.showErrorMessage('❌ Failed to load data: ' + (error as Error).message);
+      }
     } finally {
       this.isSyncing = false;
       this.cdr.detectChanges();

@@ -578,7 +578,20 @@ export class ChangeTrackComponent implements OnInit {
         this.showStatus('✅ Synced to Google Drive!', 'success');
       }
     } catch (error) {
-      throw error;
+      // If file was deleted (404), clear cache and create new file
+      if ((error as any).message?.includes('404') || (error as any).message?.includes('not found')) {
+        console.warn('File not found during update, creating new file');
+        this.driveFileId = null;
+        this.saveDriveFileId();
+        
+        // Create new file
+        const fileId = await this.driveService.createFile(this.driveFileName, data);
+        this.driveFileId = fileId;
+        this.saveDriveFileId();
+        this.showStatus('✅ File recreated and synced to Google Drive!', 'success');
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -607,7 +620,22 @@ export class ChangeTrackComponent implements OnInit {
       
       this.showStatus('✅ Data restored from Google Drive!', 'success');
     } catch (error) {
-      throw error;
+      // If file was deleted (404), recreate it with current data
+      if ((error as any).message?.includes('404') || (error as any).message?.includes('not found')) {
+        console.warn('File not found on Drive, recreating with local data');
+        this.driveFileId = null;
+        this.saveDriveFileId();
+        
+        // If we have local data, save it to recreate the file
+        if (this.cards.length > 0) {
+          await this.saveToGoogleDrive();
+          this.showStatus('✅ File recreated on Google Drive with local data', 'success');
+        } else {
+          this.showStatus('ℹ️ No data to sync - file was deleted', 'error');
+        }
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -661,9 +689,13 @@ export class ChangeTrackComponent implements OnInit {
   }
 
   private saveDriveFileId() {
-    if (typeof window === 'undefined' || !this.driveFileId) return;
+    if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem('changeTrackDriveFileId', this.driveFileId);
+      if (this.driveFileId) {
+        localStorage.setItem('changeTrackDriveFileId', this.driveFileId);
+      } else {
+        localStorage.removeItem('changeTrackDriveFileId');
+      }
     } catch (e) {
       console.warn('Failed to save Drive file ID', e);
     }
