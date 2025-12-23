@@ -5,10 +5,10 @@ import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { toPng } from 'html-to-image';
-import { DashboardV2Component } from './dashboard-v2.component';
-import { HelpComponent } from './help.component';
-import { ChangeTrackComponent } from './change-track.component';
-import { StockRadarComponent } from './stock-radar.component';
+import { DashboardV2Component } from './dashboard-v2/dashboard-v2.component';
+import { HelpComponent } from './help/help.component';
+import { ChangeTrackComponent } from './change-track/change-track.component';
+import { StockRadarComponent } from './stock-radar/stock-radar.component';
 import { GoogleDriveService } from './google-drive.service';
 import NoSleep from 'nosleep.js';
 

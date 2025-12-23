@@ -1,0 +1,130 @@
+<div class="v2-container" *ngIf="contracts" id="v2-dashboard-content">
+  <div class="v2-header">
+    <div class="v2-title">V2 PERFORMANCE SNAPSHOT</div>
+    <div class="v2-period" *ngIf="latestMonth">{{ latestMonth }}</div>
+    <div class="v2-net" [class.profit]="netPnL >= 0" [class.loss]="netPnL < 0">
+      P & L {{ netPnL >= 0 ? '+' : '-' }}₹{{ formatNumber(absNet) }}
+    </div>
+    <div class="v2-win-rate">WIN RATE: {{ winRate.toFixed(1) }}%</div>
+    
+    <!-- Drive Controls -->
+    <div class="drive-controls" *ngIf="driveService.isConnected()">
+      <select [(ngModel)]="selectedMonth" (change)="onMonthSelected()" class="month-dropdown">
+        <option value="">Select month to load...</option>
+        <option *ngFor="let month of availableMonths" [value]="month.value">
+          {{ month.label }}
+        </option>
+      </select>
+      <button 
+        class="sync-btn" 
+        (click)="syncV2Dashboard()" 
+        [disabled]="isSyncing || !contracts.length">
+        {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+      </button>
+    </div>
+    
+    <button class="export-btn" (click)="exportV2AsImage()">📸 Export as Image</button>
+  </div>
+  
+  <!-- Status Messages -->
+  <div *ngIf="statusMessage" class="status-message" [class.success]="statusType === 'success'" [class.error]="statusType === 'error'">
+    {{ statusMessage }}
+  </div>
+
+  <div class="v2-grid">
+    <div class="metric-card">
+      <div class="label">TOTAL TRADES</div>
+      <div class="value">{{ totalTrades }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">WINNERS</div>
+      <div class="value green">{{ winners }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">LOSERS</div>
+      <div class="value red">{{ losers }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">AVG WIN</div>
+      <div class="value" [class.muted]="avgWin === 0">₹{{ formatNumber(avgWin) }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">AVG LOSS</div>
+      <div class="value" [class.muted]="avgLoss === 0">₹{{ formatNumber(avgLoss) }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">PROFIT FACTOR</div>
+      <div class="value" [class.muted]="profitFactorDisplay === '—'">{{ profitFactorDisplay }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">MAX DRAWDOWN</div>
+      <div class="value red">₹{{ formatNumber(maxDrawdown) }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">LONGEST WIN STREAK</div>
+      <div class="value green">{{ longestWinStreak }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">LONGEST LOSS STREAK</div>
+      <div class="value red">{{ longestLossStreak }}</div>
+    </div>
+  </div>
+
+  <div class="v2-charts">
+    <div class="chart-card">
+      <div class="chart-title">Regular vs NIFTY (Abs P&L)</div>
+      <canvas #chartRegularNifty></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">NIFTY Futures vs Options (Abs P&L)</div>
+      <canvas #chartNiftySplit></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">NIFTY Options – Profit vs Loss</div>
+      <canvas #chartOptionsProfitLoss></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Profit vs Loss (Abs)</div>
+      <canvas #chartProfitLoss></canvas>
+    </div>
+  </div>
+
+  <div class="v2-compact">
+    <div class="compact-col">
+      <div class="compact-title">Regular – Profits ↑</div>
+      <div *ngFor="let c of regularProfitsAsc" class="compact-row">
+        <span class="name">{{ c.name }}</span>
+        <span class="value" [class.green]="c.pnl > 0" [class.red]="c.pnl < 0">
+          {{ c.pnl > 0 ? '+' : '-' }}₹{{ formatNumber(abs(c.pnl)) }}
+        </span>
+      </div>
+      <div class="compact-title">Regular – Losses ↓</div>
+      <div *ngFor="let c of regularLossesDesc" class="compact-row">
+        <span class="name">{{ c.name }}</span>
+        <span class="value" [class.green]="c.pnl > 0" [class.red]="c.pnl < 0">
+          {{ c.pnl > 0 ? '+' : '-' }}₹{{ formatNumber(abs(c.pnl)) }}
+        </span>
+      </div>
+    </div>
+    <div class="compact-col">
+      <div class="compact-title">NIFTY – Profits ↑</div>
+      <div *ngFor="let c of niftyProfitsAsc" class="compact-row">
+        <span class="name">{{ c.name }}</span>
+        <span class="value" [class.green]="c.pnl > 0" [class.red]="c.pnl < 0">
+          {{ c.pnl > 0 ? '+' : '-' }}₹{{ formatNumber(abs(c.pnl)) }}
+        </span>
+      </div>
+      <div class="compact-title">NIFTY – Losses ↓</div>
+      <div *ngFor="let c of niftyLossesDesc" class="compact-row">
+        <span class="name">{{ c.name }}</span>
+        <span class="value" [class.green]="c.pnl > 0" [class.red]="c.pnl < 0">
+          {{ c.pnl > 0 ? '+' : '-' }}₹{{ formatNumber(abs(c.pnl)) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="v2-footer">
+    <div>Experimental V2 – core metrics only. See <code>docs/dashboardv2.md</code> for roadmap.</div>
+  </div>
+</div>

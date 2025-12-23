@@ -1,0 +1,10 @@
+.help-container { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
+h1 { color: #ffc107; font-size: 1.6em; letter-spacing: 1px; margin-bottom: 10px; }
+.intro { color: #bbb; margin-bottom: 20px; }
+.section { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+h2 { font-size: 1.1em; color: #fff; margin-bottom: 8px; }
+p { font-size: 0.95em; color: #ddd; }
+.bullets { margin: 8px 0 0 16px; color: #ccc; }
+.bullets li { margin: 4px 0; }
+.tips { margin-top: 16px; }
+h3 { color: #ffc107; font-size: 1em; margin-bottom: 6px; }

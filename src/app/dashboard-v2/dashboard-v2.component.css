@@ -1,0 +1,98 @@
+.v2-container {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.4s;
+}
+@keyframes fadeIn { from { opacity:0; transform: translateY(12px);} to { opacity:1; transform: translateY(0);} }
+.v2-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.v2-title { font-size: 0.85em; letter-spacing: 2px; font-weight: 600; color: #ffc107; }
+.v2-period { font-size: 0.8em; color: #bbb; }
+.v2-net { font-size: 1.4em; font-weight: 700; }
+.v2-net.profit { color: #4caf50; }
+.v2-net.loss { color: #f44336; }
+.v2-win-rate { font-size: 0.8em; background: rgba(255,193,7,0.15); padding: 6px 10px; border-radius: 12px; letter-spacing: 1px; }
+.export-btn { padding: 8px 14px; background: #2196f3; color: #fff; font-size: 12px; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s; white-space: nowrap; margin-left: auto; }
+.export-btn:hover { background: #1976d2; transform: translateY(-2px); }
+.v2-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 16px; }
+.metric-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.metric-card .label { font-size: 0.65em; letter-spacing: 1px; color: #aaa; font-weight: 600; }
+.metric-card .value { font-size: 1.05em; font-weight: 600; }
+.metric-card .value.green { color: #4caf50; }
+.metric-card .value.red { color: #f44336; }
+.metric-card .value.muted { opacity: 0.6; }
+.v2-footer { font-size: 0.6em; color: #888; text-align: center; margin-top: 4px; }
+code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 6px; font-size: 0.9em; }
+@media (max-width: 900px) { .v2-grid { grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); } }
+
+.v2-charts { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 16px; }
+.chart-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; }
+.chart-title { font-size: 0.75em; color: #bbb; margin-bottom: 8px; }
+canvas { width: 100%; height: 200px; }
+
+.v2-compact { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.compact-col { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 14px; }
+.compact-title { font-size: 0.75em; color: #bbb; margin: 8px 0; letter-spacing: 1px; }
+.compact-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.compact-row:last-child { border-bottom: none; }
+.compact-row .name { font-size: 0.8em; color: #ddd; }
+.compact-row .value { font-size: 0.9em; font-weight: 600; }
+.compact-row .value.green { color: #4caf50; }
+.compact-row .value.red { color: #f44336; }
+
+.drive-controls { display: flex; gap: 10px; align-items: center; }
+.month-dropdown {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.85em;
+  cursor: pointer;
+  min-width: 200px;
+}
+.month-dropdown option { background: #1a2332; color: #fff; }
+.sync-btn {
+  padding: 8px 16px;
+  background: #4285f4;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+.sync-btn:hover:not(:disabled) { background: #3367d6; }
+.sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.status-message {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.85em;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.status-message.success {
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.4);
+  color: #4caf50;
+}
+.status-message.error {
+  background: rgba(244, 67, 54, 0.2);
+  border: 1px solid rgba(244, 67, 54, 0.4);
+  color: #f44336;
+}

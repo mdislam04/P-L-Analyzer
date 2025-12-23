@@ -1,0 +1,140 @@
+<div class="ct-container">
+  <div class="ct-header">
+    <h1>🔄 Change Track</h1>
+    <p class="subtitle">Track daily change values per contract</p>
+  </div>
+
+  <!-- Status Messages -->
+  <div *ngIf="statusMessage" class="status-message" [class.success]="statusType === 'success'" [class.error]="statusType === 'error'">
+    {{ statusMessage }}
+  </div>
+
+  <div class="add-contract-bar">
+    <input type="text" [(ngModel)]="newContractName" placeholder="Enter contract name (e.g., WIPRO25DECFUT)" />
+    <button (click)="addContract()">ADD</button>
+    <input 
+      type="file" 
+      id="excelUpload"
+      accept=".xlsx,.xls,.csv"
+      (change)="onExcelUpload($event)"
+      style="display: none">
+    <label for="excelUpload" class="btn-upload">📊 Upload Excel</label>
+    <button class="clear-btn" (click)="clearAllCards()">CLEAR PAGE DATA</button>
+    
+    <!-- Google Drive Sync Button -->
+    <button 
+      *ngIf="driveService.isConnected()" 
+      (click)="syncGoogleDrive()" 
+      class="btn-sync-drive"
+      [disabled]="isSyncing">
+      {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+    </button>
+  </div>
+  <div *ngIf="duplicateWarning" class="warn">Contract already exists.</div>
+
+  <div class="cards-wrapper" [class.expanding]="anyExpanded">
+    <div *ngFor="let card of cards; trackBy: trackByName" class="ct-card" [class.expanded]="card.expanded">
+      <div class="card-header">
+        <div class="card-title">{{ card.name }}</div>
+        <div class="change-widget">
+          <div class="widget-left">
+            <div class="date-picker-wrapper">
+              <button class="date-picker-icon" (click)="openDatePicker(card)" title="Select date">📅</button>
+              <input 
+                type="date" 
+                [(ngModel)]="card.selectedFromDate" 
+                (ngModelChange)="calculateChange(card)"
+                [max]="getLatestDate(card)"
+                class="date-picker-hidden"
+                #datePicker
+              />
+            </div>
+            <button class="spinner-btn" (click)="decrementDays(card)" [disabled]="(card.daysCount || 0) <= 1">◄</button>
+            <span class="days-display">{{ card.daysCount || 0 }} Days</span>
+            <button class="spinner-btn" (click)="incrementDays(card)" [disabled]="(card.daysCount || 0) >= card.entries.length">►</button>
+          </div>
+          <div class="widget-divider"></div>
+          <div class="widget-right">
+            <div class="change-value" [class.profit]="(card.calculatedChange || 0) >= 0" [class.loss]="(card.calculatedChange || 0) < 0">
+              {{ (card.calculatedChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(card.calculatedChange || 0) }}
+            </div>
+            <div class="change-percent" *ngIf="card.percentageChange !== 0" [class.profit]="(card.percentageChange || 0) >= 0" [class.loss]="(card.percentageChange || 0) < 0">
+              {{ (card.percentageChange || 0) >= 0 ? '↗' : '↘' }} {{ (card.percentageChange || 0) >= 0 ? '+' : '' }}{{ (card.percentageChange || 0).toFixed(2) }}%
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn pin" (click)="togglePin(card)" [class.pinned]="card.isPinned" [attr.aria-label]="card.isPinned ? 'Unpin card' : 'Pin card to top'">
+            {{ card.isPinned ? '⭐' : '☆' }}
+          </button>
+          <button class="icon-btn add header-add" (click)="addEntry(card)" aria-label="Add change entry"><span class="plus-icon">+</span></button>
+          <button class="icon-btn delete-card" (click)="deleteCard(card)" aria-label="Delete card">🗑️</button>
+          <button class="icon-btn fullscreen" (click)="toggleExpand(card)" [attr.aria-label]="card.expanded ? 'Exit full screen' : 'Full screen'">⛶</button>
+          <button *ngIf="card.expanded" class="icon-btn close" (click)="toggleExpand(card)" aria-label="Close fullscreen">✖</button>
+        </div>
+      </div>
+      
+      <div class="entry-add-row">
+        <input type="date" [(ngModel)]="card.newEntryDate" class="input-date" />
+        <input type="number" [(ngModel)]="card.newEntryValue" placeholder="Change" class="input-change" />
+        <input type="number" [(ngModel)]="card.newEntryOpen" placeholder="Open" class="input-small" />
+        <input type="number" [(ngModel)]="card.newEntryClose" placeholder="Close" class="input-small" />
+        <input type="number" [(ngModel)]="card.newEntryVolume" placeholder="Volume" class="input-small" />
+      </div>
+      <div *ngIf="card.duplicateDate" class="warn small">Date already recorded.</div>
+      <div *ngIf="card.entries.length === 0" class="empty">No changes recorded yet.</div>
+      <div class="entry-list-wrapper">
+        <div *ngIf="card.entries.length > 0" class="entry-header">
+          <span class="header-label header-left">Date</span>
+          <span class="header-label header-left">Change</span>
+          <span class="header-label header-right">Open</span>
+          <span class="header-label header-right">Close</span>
+          <span class="header-label header-right">Volume</span>
+          <span class="header-label header-center">Actions</span>
+        </div>
+        <div class="entry-list">
+          <div *ngFor="let e of card.entries; let i = index" class="entry-item" [class.editing]="e.isEditing">
+          <!-- View Mode -->
+          <ng-container *ngIf="!e.isEditing">
+            <span class="date">{{ formatDisplayDate(e.date) }}</span>
+            <span class="value" [class.profit]="e.value >= 0" [class.loss]="e.value < 0">
+              {{ e.value >= 0 ? '+' : '-' }}₹{{ formatNumber(e.value) }}
+            </span>
+            <span class="price-value" [class.empty]="e.open === undefined">
+              {{ e.open !== undefined ? '₹' + formatNumber(e.open) : '-' }}
+            </span>
+            <span class="price-value" [class.empty]="e.close === undefined">
+              {{ e.close !== undefined ? '₹' + formatNumber(e.close) : '-' }}
+            </span>
+            <span class="volume-wrapper">
+              <span class="volume-value" [class.empty]="e.volume === undefined">
+                {{ e.volume !== undefined ? formatVolume(e.volume) : '-' }}
+              </span>
+              <div *ngIf="e.volume !== undefined" class="tooltip-bubble">
+                <strong>Volume:</strong> {{ e.volume.toLocaleString('en-IN') }}
+              </div>
+            </span>
+            <div class="entry-actions">
+              <button class="icon-btn edit" (click)="startEdit(e)" title="Edit">✎</button>
+              <button class="icon-btn delete" (click)="deleteEntry(card, i)" title="Delete">−</button>
+            </div>
+          </ng-container>
+          <!-- Edit Mode -->
+          <ng-container *ngIf="e.isEditing">
+            <input type="date" [(ngModel)]="e.editDate" class="edit-input-date" />
+            <input type="number" [(ngModel)]="e.editValue" class="edit-input-value" />
+            <input type="number" [(ngModel)]="e.editOpen" placeholder="Open" class="edit-input-small" />
+            <input type="number" [(ngModel)]="e.editClose" placeholder="Close" class="edit-input-small" />
+            <input type="number" [(ngModel)]="e.editVolume" placeholder="Vol" class="edit-input-small" />
+            <div class="entry-actions">
+              <button class="icon-btn save" (click)="saveEdit(card, e)" title="Save">✓</button>
+              <button class="icon-btn cancel" (click)="cancelEdit(e)" title="Cancel">✖</button>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">Data is stored locally (no backend). See <code>docs/change-track-requirements.md</code> for roadmap.</div>
+</div>

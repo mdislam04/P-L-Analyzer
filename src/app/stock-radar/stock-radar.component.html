@@ -1,0 +1,226 @@
+    <div class="sr-container">
+      <!-- Add Stock Card Bar -->
+      <div class="add-stock-bar">
+        <input 
+          type="text" 
+          [(ngModel)]="newStockName" 
+          placeholder="Enter stock name (e.g., WIPRO)"
+          class="stock-input"
+        />
+        <input 
+          type="date" 
+          [(ngModel)]="newStockDate" 
+          class="date-input"
+        />
+        <button (click)="addStockCard()" class="btn-add-stock">+ Add Stock Card</button>
+        
+        <!-- Google Drive Sync Button -->
+        <button 
+          *ngIf="driveService.isConnected()" 
+          (click)="syncGoogleDrive()" 
+          class="btn-sync-drive"
+          [disabled]="isSyncing">
+          {{ isSyncing ? '⏳ Syncing...' : '🔄 Sync Drive' }}
+        </button>
+      </div>
+
+      <!-- Status Messages -->
+      <div *ngIf="statusMessage" class="status-message" [class.success]="statusType === 'success'" [class.error]="statusType === 'error'">
+        {{ statusMessage }}
+      </div>
+
+      <!-- Warning Messages -->
+      <div *ngIf="duplicateStockName" class="warning-msg">
+        ⚠️ Stock card "{{ newStockName }}" already exists!
+      </div>
+
+      <!-- Cards Wrapper -->
+      <div class="cards-wrapper" [class.expanding]="anyExpanded">
+        <div 
+          *ngFor="let card of stockCards" 
+          class="sr-card"
+          [class.expanded]="card.expanded"
+        >
+          <!-- Card Header -->
+          <div class="card-header">
+            <div class="header-left">
+              <span class="expand-icon" (click)="toggleExpand(card)">
+                {{ card.expanded ? '⌃' : '⌄' }}
+              </span>
+              <h3 class="stock-name">{{ card.name }}</h3>
+            </div>
+            <div class="header-right">
+              <input 
+                type="date" 
+                [(ngModel)]="card.dateContext" 
+                (change)="saveToLocalStorage()"
+                class="date-picker"
+              />
+              <button (click)="clearCard(card)" class="btn-clear-card">Clear Card</button>
+              <button 
+                *ngIf="card.expanded" 
+                class="icon-btn close" 
+                (click)="toggleExpand(card)"
+                title="Close fullscreen (ESC)"
+              >×</button>
+            </div>
+          </div>
+
+          <!-- Expanded Content -->
+          <div *ngIf="card.expanded" class="card-content">
+            
+            <!-- Grid Layout for Cards -->
+            <div class="content-grid">
+              
+              <!-- Support Card -->
+              <div class="mini-card">
+                <div class="mini-card-header">
+                  <h4 class="mini-card-title">📍 Supports</h4>
+                </div>
+                <div class="mini-card-body">
+                  <!-- Support Input Row -->
+                  <div class="mini-input-row">
+                    <input 
+                      type="number" 
+                      [(ngModel)]="card.newSupportValue" 
+                      placeholder="Enter support level"
+                      class="mini-level-input"
+                      step="0.01"
+                    />
+                    <button (click)="addSupport(card)" class="btn-add-mini">+</button>
+                  </div>
+
+                  <!-- Supports List -->
+                  <div *ngIf="card.supports.length > 0" class="mini-levels-list">
+                    <div *ngFor="let support of card.supports; let i = index" class="mini-level-item">
+                      <span class="mini-level-label">{{ support.label }}</span>
+                      <span class="mini-level-value">{{ formatNumber(support.value) }}</span>
+                      <button (click)="deleteSupport(card, i)" class="btn-delete-mini">−</button>
+                    </div>
+                  </div>
+
+                  <div *ngIf="card.supports.length === 0" class="empty-mini-state">
+                    No support levels added yet
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resistance Card -->
+              <div class="mini-card">
+                <div class="mini-card-header">
+                  <h4 class="mini-card-title">🎯 Resistances</h4>
+                </div>
+                <div class="mini-card-body">
+                  <!-- Resistance Input Row -->
+                  <div class="mini-input-row">
+                    <input 
+                      type="number" 
+                      [(ngModel)]="card.newResistanceValue" 
+                      placeholder="Enter resistance level"
+                      class="mini-level-input"
+                      step="0.01"
+                    />
+                    <button (click)="addResistance(card)" class="btn-add-mini">+</button>
+                  </div>
+
+                  <!-- Resistances List -->
+                  <div *ngIf="card.resistances.length > 0" class="mini-levels-list">
+                    <div *ngFor="let resistance of card.resistances; let i = index" class="mini-level-item">
+                      <span class="mini-level-label">{{ resistance.label }}</span>
+                      <span class="mini-level-value">{{ formatNumber(resistance.value) }}</span>
+                      <button (click)="deleteResistance(card, i)" class="btn-delete-mini">−</button>
+                    </div>
+                  </div>
+
+                  <div *ngIf="card.resistances.length === 0" class="empty-mini-state">
+                    No resistance levels added yet
+                  </div>
+                </div>
+              </div>
+
+              <!-- Notes Card -->
+              <div class="mini-card mini-card-wide">
+                <div class="mini-card-header">
+                  <h4 class="mini-card-title">📝 Development Notes</h4>
+                </div>
+                <div class="mini-card-body">
+                  <!-- Edit/Preview Toggle -->
+                  <div class="editor-toggle">
+                    <button 
+                      (click)="card.notePreviewMode = false"
+                      [class.active]="!card.notePreviewMode"
+                      class="toggle-btn"
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button 
+                      (click)="card.notePreviewMode = true"
+                      [class.active]="card.notePreviewMode"
+                      class="toggle-btn"
+                    >
+                      👁️ Preview
+                    </button>
+                  </div>
+
+                  <!-- Edit Mode -->
+                  <div *ngIf="!card.notePreviewMode" class="editor-container">
+                    <!-- Formatting Toolbar -->
+                    <div class="formatting-toolbar">
+                      <button (click)="insertMarkdown(card, 'bold')" class="fmt-btn" title="Bold (Ctrl+B)">B</button>
+                      <button (click)="insertMarkdown(card, 'italic')" class="fmt-btn" title="Italic (Ctrl+I)">I</button>
+                      <button (click)="insertMarkdown(card, 'code')" class="fmt-btn" title="Code">&lt;/&gt;</button>
+                      <button (click)="insertMarkdown(card, 'list')" class="fmt-btn" title="List">•</button>
+                      <button (click)="insertMarkdown(card, 'link')" class="fmt-btn" title="Link (Ctrl+K)">🔗</button>
+                      <button (click)="insertMarkdown(card, 'h1')" class="fmt-btn" title="Heading 1">H1</button>
+                      <button (click)="insertMarkdown(card, 'h2')" class="fmt-btn" title="Heading 2">H2</button>
+                    </div>
+
+                    <!-- Notes Input Row -->
+                    <div class="mini-input-row">
+                      <textarea
+                        #noteTextarea
+                        [(ngModel)]="card.newNoteText" 
+                        (keydown)="handleKeyboard($event, card)"
+                        placeholder="Enter note (Markdown: **bold**, *italic*, - list)"
+                        class="mini-note-input"
+                        rows="4"
+                      ></textarea>
+                      <button (click)="addNote(card)" class="btn-add-mini">+</button>
+                    </div>
+                  </div>
+
+                  <!-- Preview Mode -->
+                  <div *ngIf="card.notePreviewMode" class="preview-container">
+                    <div class="preview-content">
+                      <markdown [data]="card.newNoteText || '*No content to preview*'"></markdown>
+                    </div>
+                    <button (click)="addNote(card)" class="btn-add-preview">Add Note</button>
+                  </div>
+
+                  <!-- Notes List -->
+                  <div *ngIf="card.notes.length > 0" class="mini-notes-list">
+                    <div *ngFor="let note of card.notes; let i = index" class="mini-note-item">
+                      <div class="mini-note-text">
+                        <markdown [data]="note.text"></markdown>
+                      </div>
+                      <button (click)="deleteNote(card, i)" class="btn-delete-mini">−</button>
+                    </div>
+                  </div>
+
+                  <div *ngIf="card.notes.length === 0" class="empty-mini-state">
+                    No development notes added yet
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="stockCards.length === 0" class="empty-state">
+        <p>📊 No stock cards yet. Add your first stock to start tracking support and resistance levels!</p>
+      </div>
+    </div>
