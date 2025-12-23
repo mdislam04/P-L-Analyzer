@@ -58,7 +58,7 @@ export class GoogleDriveService {
       }
 
       const client = google.accounts.oauth2.initTokenClient({
-        client_id: environment.googleDrive.clientId,
+        client_id: environment.googleClientId,
         scope: 'https://www.googleapis.com/auth/drive.file',
         callback: (response: any) => {
           if (response.error) {

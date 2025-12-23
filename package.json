@@ -4,6 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "prebuild": "node scripts/generate-build-info.js",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
@@ -34,6 +35,7 @@
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.11",
     "html2canvas": "^1.4.1",
+    "lucide-angular": "^0.562.0",
     "marked": "^17.0.1",
     "ngx-markdown": "^21.0.1",
     "nosleep.js": "^0.12.0",
