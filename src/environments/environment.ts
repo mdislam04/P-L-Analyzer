@@ -4,14 +4,8 @@ export const environment = {
   
   // Build metadata (development environment)
   build: {
-    buildId: 'dev',
-    deployId: 'dev',
-    shortDeployId: 'dev',
-    commitRef: 'local',
-    shortCommit: 'local',
-    context: 'development',
-    deployTime: new Date().toISOString(),
-    deployUrl: 'http://localhost:4200',
-    version: '0.0.0'
+    version: '1.0.0',
+    deployDate: new Date().toISOString(),
+    isProduction: false
   }
 };

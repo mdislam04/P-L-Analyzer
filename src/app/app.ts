@@ -99,6 +99,17 @@ export class App implements OnDestroy {
     }
   }
 
+  // Format deployment date for display
+  formatDeployDate(isoDate: string): string {
+    const date = new Date(isoDate);
+    const options: Intl.DateTimeFormatOptions = { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric'
+    };
+    return date.toLocaleDateString('en-US', options);
+  }
+
   // Sidebar methods
   toggleSidebar() {
     this.sidebarCollapsed = !this.sidebarCollapsed;

@@ -614,7 +614,21 @@ input:checked + .toggle-slider:hover {
   font-size: 0.7em;
 }
 
-.build-context {
+.build-version {
+  color: #ffc107;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  font-size: 1.2em;
+  text-align: center;
+}
+
+.build-date {
+  color: #888;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+.build-env {
   padding: 4px 8px;
   background: rgba(255, 193, 7, 0.2);
   border: 1px solid rgba(255, 193, 7, 0.3);
@@ -624,34 +638,13 @@ input:checked + .toggle-slider:hover {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-size: 0.85em;
 }
 
-.build-context.production {
+.build-env.production {
   background: rgba(76, 175, 80, 0.2);
   border-color: rgba(76, 175, 80, 0.3);
   color: #4caf50;
-}
-
-.build-version,
-.build-deploy,
-.build-commit {
-  color: #888;
-  font-family: 'Courier New', monospace;
-}
-
-.build-version::before {
-  content: 'Ver: ';
-  color: #666;
-}
-
-.build-deploy::before {
-  content: 'Deploy: ';
-  color: #666;
-}
-
-.build-commit::before {
-  content: 'Commit: ';
-  color: #666;
 }
 
 .build-info-collapsed {

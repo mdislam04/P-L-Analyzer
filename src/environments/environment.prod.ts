@@ -5,16 +5,10 @@ export const environment = {
   production: true,
   googleClientId: '415057442876-1lpa3bgneif4l2gnd6g1anml9o49hl0l.apps.googleusercontent.com',
   
-  // Build metadata (auto-generated from Netlify environment)
+  // Build metadata
   build: {
-    buildId: 'local-dev',
-    deployId: 'local',
-    shortDeployId: 'local',
-    commitRef: 'unknown',
-    shortCommit: 'unknown',
-    context: 'development',
-    deployTime: '2025-12-23T12:50:39.313Z',
-    deployUrl: 'http://localhost:4200',
-    version: '0.0.0'
+    version: '1.0.0',
+    deployDate: '2025-12-26T09:22:49.326Z',
+    isProduction: false
   }
 };

@@ -1,11 +1,12 @@
 {
   "name": "trading-dashboard",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "prebuild": "node scripts/generate-build-info.js",
     "build": "ng build",
+    "postbuild": "npm version patch",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

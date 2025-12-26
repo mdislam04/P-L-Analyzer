@@ -164,12 +164,11 @@
   <!-- Sidebar Footer: Build Info -->
   <div class="sidebar-footer">
     <div class="build-info" *ngIf="!sidebarCollapsed">
-      <div class="build-context" [class.production]="buildInfo.context === 'production'">
-        {{ buildInfo.context }}
-      </div>
       <div class="build-version">v{{ buildInfo.version }}</div>
-      <div class="build-deploy">{{ buildInfo.shortDeployId }}</div>
-      <div class="build-commit">{{ buildInfo.shortCommit }}</div>
+      <div class="build-date">{{ formatDeployDate(buildInfo.deployDate) }}</div>
+      <div class="build-env" [class.production]="buildInfo.isProduction">
+        {{ buildInfo.isProduction ? 'Production' : 'Development' }}
+      </div>
     </div>
     <div class="build-info-collapsed" *ngIf="sidebarCollapsed">
       <lucide-icon name="info" [size]="16"></lucide-icon>
