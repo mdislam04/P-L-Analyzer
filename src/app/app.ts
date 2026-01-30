@@ -11,7 +11,7 @@ import { ChangeTrackComponent } from './change-track/change-track.component';
 import { StockRadarComponent } from './stock-radar/stock-radar.component';
 import { GoogleDriveService } from './google-drive.service';
 import NoSleep from 'nosleep.js';
-import { LucideAngularModule, Menu, X, Clipboard, BarChart3, TrendingUp, ArrowLeftRight, Radar, HelpCircle, BarChart2, TrendingDown, PieChart, Sun, Moon, Cloud, CloudCheck, Info, ExternalLink } from 'lucide-angular';
+import { LucideAngularModule, Menu, X, Clipboard, BarChart3, TrendingUp, ArrowLeftRight, Radar, HelpCircle, BarChart2, TrendingDown, PieChart, Sun, Moon, Cloud, CloudCheck, Info, ExternalLink, ChevronUp, ChevronDown, Github, LineChart, Newspaper, Globe } from 'lucide-angular';
 import { environment } from '../environments/environment';
 
 
@@ -49,6 +49,7 @@ export class App implements OnDestroy {
   // Sidebar state
   sidebarCollapsed = false;
   isMobileView = false;
+  quickLinksExpanded = false;
   
   // Build info from environment
   buildInfo = environment.build;
@@ -114,6 +115,10 @@ export class App implements OnDestroy {
   toggleSidebar() {
     this.sidebarCollapsed = !this.sidebarCollapsed;
     this.saveSidebarState();
+  }
+
+  toggleQuickLinks() {
+    this.quickLinksExpanded = !this.quickLinksExpanded;
   }
 
   private loadSidebarState() {

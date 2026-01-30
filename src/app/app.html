@@ -90,43 +90,121 @@
       </div>
     </div>
 
-    <!-- Quick Links Section -->
+    <!-- Quick Links Section - Expandable -->
     <div class="quick-links-section">
-      <div class="section-header" *ngIf="!sidebarCollapsed">
-        <i data-lucide="link-2"></i>
-        <span>Quick Access</span>
+      <div class="section-header expandable"
+           (click)="toggleQuickLinks()"
+           [class.expanded]="quickLinksExpanded"
+           [title]="quickLinksExpanded ? 'Collapse Quick Access' : 'Expand Quick Access'">
+        <div class="header-left">
+          <i data-lucide="link-2"></i>
+          <span *ngIf="!sidebarCollapsed">Quick Access</span>
+        </div>
+        <i class="expand-icon"
+           [attr.data-lucide]="quickLinksExpanded ? 'chevron-up' : 'chevron-down'"
+           *ngIf="!sidebarCollapsed"></i>
       </div>
-      <div class="quick-links-grid">
-        <a href="https://claude.ai/public/artifacts/fc830a0c-7e32-47c4-b3f7-61b45bbb859a" 
-           target="_blank" 
-           rel="noopener noreferrer" 
-           class="quick-link-card"
-           title="Nov 24 - Dec 25">
-          <div class="link-icon">
+
+      <!-- Expandable Links Container -->
+      <div class="quick-links-dropdown"
+           [class.expanded]="quickLinksExpanded"
+           [class.collapsed-sidebar]="sidebarCollapsed">
+        <div class="quick-links-list">
+          <!-- Analytics Links -->
+          <div class="link-category" *ngIf="!sidebarCollapsed">
+            <div class="category-label">Analytics</div>
+          </div>
+          <a href="https://claude.ai/public/artifacts/fc830a0c-7e32-47c4-b3f7-61b45bbb859a"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="Nov 24 - Dec 25 Analysis">
             <i data-lucide="calendar-range"></i>
-          </div>
-          <span class="link-label">Nov-Dec</span>
-        </a>
-        <a href="https://claude.ai/public/artifacts/83aec5af-de25-4fe1-a249-37e58c35df33" 
-           target="_blank" 
-           rel="noopener noreferrer" 
-           class="quick-link-card"
-           title="Big Losses">
-          <div class="link-icon loss">
+            <span *ngIf="!sidebarCollapsed">Nov-Dec Analysis</span>
+          </a>
+          <a href="https://claude.ai/public/artifacts/83aec5af-de25-4fe1-a249-37e58c35df33"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item loss"
+             title="Big Losses Report">
             <i data-lucide="trending-down"></i>
-          </div>
-          <span class="link-label">Losses</span>
-        </a>
-        <a href="https://claude.ai/public/artifacts/f8f5196c-3a9f-48ac-b61b-5e5eaf4774f2" 
-           target="_blank" 
-           rel="noopener noreferrer" 
-           class="quick-link-card"
-           title="P & L Breakup">
-          <div class="link-icon profit">
+            <span *ngIf="!sidebarCollapsed">Losses Report</span>
+          </a>
+          <a href="https://claude.ai/public/artifacts/f8f5196c-3a9f-48ac-b61b-5e5eaf4774f2"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item profit"
+             title="P & L Breakup">
             <i data-lucide="pie-chart"></i>
+            <span *ngIf="!sidebarCollapsed">P&L Breakup</span>
+          </a>
+          <a href="https://claude.ai/public/artifacts/e47843c5-1883-4d96-8844-8ec204a66a43"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item profit"
+             title="P & L Tracker">
+            <i data-lucide="pie-chart"></i>
+            <span *ngIf="!sidebarCollapsed">Daily P & L Tracker</span>
+          </a>
+
+          <!-- External Tools -->
+          <div class="link-category" *ngIf="!sidebarCollapsed">
+            <div class="category-label">Tools</div>
           </div>
-          <span class="link-label">Breakup</span>
-        </a>
+          <a href="https://drive.google.com"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="Google Drive">
+            <i data-lucide="cloud"></i>
+            <span *ngIf="!sidebarCollapsed">Google Drive</span>
+          </a>
+          <a href="https://github.com"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="GitHub Repository">
+            <i data-lucide="github"></i>
+            <span *ngIf="!sidebarCollapsed">GitHub</span>
+          </a>
+          <a href="https://www.tradingview.com"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="TradingView">
+            <i data-lucide="bar-chart-2"></i>
+            <span *ngIf="!sidebarCollapsed">TradingView</span>
+          </a>
+
+          <!-- Resources -->
+          <div class="link-category" *ngIf="!sidebarCollapsed">
+            <div class="category-label">Resources</div>
+          </div>
+          <a href="https://www.nseindia.com"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="NSE India">
+            <i data-lucide="line-chart"></i>
+            <span *ngIf="!sidebarCollapsed">NSE India</span>
+          </a>
+          <a href="https://www.moneycontrol.com"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="MoneyControl">
+            <i data-lucide="newspaper"></i>
+            <span *ngIf="!sidebarCollapsed">MoneyControl</span>
+          </a>
+          <a href="https://www.investing.com"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="quick-link-item"
+             title="Investing.com">
+            <i data-lucide="globe"></i>
+            <span *ngIf="!sidebarCollapsed">Investing.com</span>
+          </a>
+        </div>
       </div>
     </div>
 
